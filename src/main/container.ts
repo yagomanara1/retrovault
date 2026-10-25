@@ -1,0 +1,485 @@
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import type { EventChannel, EventContract } from '@shared/ipc';
+import type { DB } from './db/database';
+import { CacheRepository } from './db/repositories/cacheRepository';
+import { GameRepository } from './db/repositories/gameRepository';
+import { SettingsRepository } from './db/repositories/settingsRepository';
+import { TrophyRepository } from './db/repositories/trophyRepository';
+import { TrophyLogWatcher } from './services/trophies/trophyLogWatcher';
+import { TrophyService } from './services/trophies/trophyService';
+import { TrpLocator } from './services/trophies/trpLocator';
+import { DumpArtworkService } from './services/trophies/dumpArtwork';
+import { AchievementWatcher } from './services/achievementWatcher';
+import { ApiCache } from './services/apiCache';
+import { ArtworkService } from './services/artworkService';
+import { GameService } from './services/gameService';
+import { LauncherService } from './services/launcherService';
+import { ProcessSnapshotter } from './services/processTree';
+import { RelocationService } from './services/relocationService';
+import { BackupService } from './services/backupService';
+import { ProgressService } from './services/progressService';
+import { LibraryImportService } from './services/libraryImportService';
+import { RetroAchievementsClient } from './services/retroachievements/client';
+import { RetroArchService } from './services/retroarchService';
+import { SettingsService } from './services/settingsService';
+import { SavePathRepository } from './db/repositories/savePathRepository';
+import { SaveLocator } from './services/saves/saveLocator';
+import { SaveService } from './services/saves/saveService';
+import { SaveVault } from './services/saves/saveVault';
+import { CloudService } from './services/cloudService';
+import { CategoryRepository } from './db/repositories/categoryRepository';
+import { CategoryService } from './services/categoryService';
+import { StoreCatalogService } from './services/store/catalogService';
+import { GitHubClient } from './services/store/githubClient';
+import { InstallService } from './services/store/installService';
+import { RomService } from './services/store/romService';
+import { StoreArtService } from './services/store/storeArt';
+import { GameArtService } from './services/gameArtService';
+import { CustomPortService } from './services/store/customPorts';
+import type { StorePort } from '@shared/store';
+import { CustomPortRepository } from './db/repositories/customPortRepository';
+import { ModInstallRepository } from './db/repositories/modInstallRepository';
+import { GAMEBANANA_IMAGE_HOST, GameBananaClient } from './services/store/gameBanana';
+import { ModService } from './services/store/modService';
+import { StoreArtRepository } from './db/repositories/storeArtRepository';
+import { StoreInstallRepository } from './db/repositories/storeInstallRepository';
+import { AppUpdateService, type AppUpdateDeps } from './services/appUpdateService';
+import { EmulatorService } from './services/emulatorService';
+import { DISCORD_CLIENT_ID, DISCORD_FALLBACK_IMAGE, isDiscordImage } from './services/discord/discordConfig';
+import { DiscordPresenceService } from './services/discord/discordPresence';
+import { findSteamRoot, type StoreLibraryDeps } from './services/storeLibraries';
+import { findSteamApp, steamArtwork, steamPlaytime } from './services/steam/steamLibrary';
+import { fetchImage, isSteamRunning, SteamShortcutService } from './services/steam/steamShortcutService';
+import type { Game } from '@shared/types';
+
+export interface ContainerDeps {
+  db: DB;
+  dbFile: string;
+  backupDir: string;
+  userDataDir: string;
+  /** %APPDATA%: onde launchers de ports guardam a pasta do dump (ex.: gow3-launcher\settings.json). */
+  appDataDir: string;
+  /** Pastas do Windows: cofre de saves padrão e locais comuns de save de jogos de PC. */
+  documentsDir: string;
+  homeDir: string;
+  localAppDataDir: string;
+  /** Onde programas costumam ser instalados (Arquivos de Programas, %LOCALAPPDATA%\Programs): procura de emuladores. */
+  programDirs: readonly string[];
+  /** %ProgramData%: manifestos da Epic (importação das lojas). */
+  programDataDir: string;
+  /** Pasta temporária do sistema. */
+  tempDir: string;
+  /** O RetroVault empacotado (para se adicionar à Steam); null em desenvolvimento. */
+  launcherExe: string | null;
+  /** Pasta da Steam fixada (RETROVAULT_STEAM_DIR, para testar numa cópia); null = procurar. */
+  steamDirOverride: string | null;
+  /** Abre uma URL de protocolo (steam://exit). */
+  openExternal(url: string): Promise<void>;
+  emit<E extends EventChannel>(event: E, payload: EventContract[E]): void;
+  notify(title: string, body: string, iconPath?: string | null): void;
+  /** Manda um arquivo/pasta para a Lixeira (shell.trashItem no app; injetado para testes). */
+  trash(target: string): Promise<void>;
+  /** Roda o instalador de um port e espera fechar (o usuário segue os passos dele). */
+  runInstaller(file: string, signal: AbortSignal): Promise<void>;
+  /** Seletor de .exe na janela do app; null se cancelado. */
+  pickExecutable(title: string): Promise<string | null>;
+  /** Atualização do próprio app: versão em uso, se este app se atualiza e o electron-updater (carregado só se sim). */
+  appUpdate: Pick<AppUpdateDeps, 'currentVersion' | 'releasesUrl' | 'disabledReason' | 'createUpdater'>;
+}
+
+const GRADE_LABEL = { P: 'Platina', G: 'Ouro', S: 'Prata', B: 'Bronze' } as const;
+/** Por quanto tempo lembrar que a versão nova de um port já foi avisada (uma notificação por versão). */
+const NOTIFIED_TTL_MS = 365 * 24 * 60 * 60_000;
+
+/** Composition root: único lugar que conhece as implementações concretas. */
+export function createContainer(deps: ContainerDeps) {
+  const { db, dbFile, backupDir, userDataDir, appDataDir, emit, notify } = deps;
+  const gameRepo = new GameRepository(db);
+  const trophyRepo = new TrophyRepository(db);
+  const backups = new BackupService(db, dbFile, backupDir);
+  const progress = new ProgressService(gameRepo, trophyRepo);
+  const settings = new SettingsService(new SettingsRepository(db), path.join(deps.documentsDir, 'RetroVault', 'Saves'));
+  const cache = new ApiCache(new CacheRepository(db));
+  const ra = new RetroAchievementsClient(() => settings.getRaCredentials(), cache);
+  const retroarch = new RetroArchService(settings, userDataDir);
+  const artwork = new ArtworkService(path.join(userDataDir, 'artwork'));
+  // Um só localizador de dumps de PS4: troféus e arte oficial vêm do mesmo sce_sys/.
+  const dumpLocator = new TrpLocator([appDataDir]);
+  const games = new GameService(gameRepo, ra, retroarch, artwork, new DumpArtworkService(dumpLocator));
+
+  const watcher = new AchievementWatcher(ra, (achievements) => {
+    emit('achievements:unlocked', { achievements });
+    if (!settings.get().notifyAchievements) return;
+    for (const a of achievements) {
+      notify(`🏆 Conquista desbloqueada: ${a.title}`, `${a.gameTitle} · ${a.points} pontos`);
+    }
+  });
+
+  const emulators = new EmulatorService({
+    repo: new SettingsRepository(db),
+    installRoots: deps.programDirs,
+    homeDir: deps.homeDir,
+    retroArchCores: async () => (await retroarch.status()).cores.map((c) => c.name),
+  });
+
+  const snapshots = new ProcessSnapshotter();
+  const launcher = new LauncherService(gameRepo, games, retroarch, emulators, settings, snapshots, {
+    onStarted(game) {
+      emit('session:started', { gameId: game.id });
+      if (game.kind === 'retroarch' || game.raGameId) void watcher.start(game.id);
+      // RPCS3/Vita3K: troféus do emulador avisados na hora (a lista pode surgir na primeira execução).
+      trophies.watchEmulatorProgress(game.id);
+      discord.gameStarted(game);
+    },
+    onEnded(game, durationSeconds) {
+      discord.gameEnded(game);
+      void trophies.stopWatchingEmulatorProgress(game.id).then(() => trophies.queueAutoImport(game.id));
+      watcher.stop(game.id);
+      ra.invalidateUserData(game.raGameId ? [game.raGameId] : []);
+      emit('session:ended', { gameId: game.id, durationSeconds });
+      // Jogo fechado: guarda o save no cofre (só grava se mudou) e o progresso ao lado dele.
+      if (settings.get().autoBackupSaves) backupSave(game.id, 'session');
+      exportProgressNextToVault();
+    },
+  });
+
+  const saves = new SaveService({
+    games,
+    repo: new SavePathRepository(db),
+    locator: new SaveLocator(
+      {
+        documents: deps.documentsDir,
+        savedGames: path.join(deps.homeDir, 'Saved Games'),
+        localAppData: deps.localAppDataDir,
+      },
+      () => retroarch.saveDirs(),
+    ),
+    vault: new SaveVault(() => settings.get().savesRoot),
+    retroarchDir: async () => (await retroarch.saveDirs())?.exeDir ?? null,
+    isRunning: (gameId) => launcher.runningGameIds().includes(gameId),
+  });
+  const cloud = new CloudService({
+    home: deps.homeDir,
+    localAppData: deps.localAppDataDir,
+    appData: appDataDir,
+    programFiles: [process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter((p): p is string => !!p),
+    env: process.env,
+  });
+
+  /**
+   * Troféus e tempo de jogo também saem do PC: o progresso exportado fica ao lado do cofre
+   * (<cofre>\..\Progresso), então sobe junto quando o cofre está no OneDrive/Google Drive/Dropbox.
+   */
+  function exportProgressNextToVault(): void {
+    const file = path.join(path.dirname(settings.get().savesRoot), 'Progresso', 'retrovault-progresso.json');
+    void fs
+      .mkdir(path.dirname(file), { recursive: true })
+      .then(() => progress.export(file))
+      .catch((err) => console.warn('[cloud] exportação do progresso falhou', err));
+  }
+
+  function backupSave(gameId: number, reason: 'session' | 'auto'): void {
+    saves
+      .backup(gameId, reason)
+      .then((snapshot) => snapshot && emit('saves:changed', { gameId }))
+      .catch((err) => console.warn('[saves] backup automático falhou', err));
+  }
+
+  const trophies = new TrophyService(trophyRepo, games, settings, artwork, dumpLocator, {
+    onAutoImported(game, set) {
+      emit('trophies:imported', { gameId: game.id, gameTitle: game.title, count: set.trophies.length });
+    },
+    onLogAttached(game) {
+      emit('trophies:changed', { gameId: game.id });
+    },
+    onUnlocked(game, unlocked) {
+      emit('trophies:unlocked', { gameId: game.id, gameTitle: game.title, trophies: unlocked });
+      if (!settings.get().notifyAchievements) return;
+      for (const t of unlocked) {
+        notify(
+          `🏆 Troféu de ${GRADE_LABEL[t.grade]}: ${t.name}`,
+          `${game.title}${t.detail ? ` · ${t.detail}` : ''}`,
+          t.iconUrl ? artwork.resolve(t.iconUrl) : null,
+        );
+      }
+    },
+  }, appDataDir);
+  const trophyWatcher = new TrophyLogWatcher(trophies);
+  const relocation = new RelocationService(games, trophies, {
+    onRelocated(game) {
+      emit('games:relocated', { gameId: game.id, title: game.title, path: game.path });
+    },
+  });
+
+  const applyDumpArtwork = (gameId: number) =>
+    games
+      .applyDumpArtwork(gameId)
+      .then((game) => game && emit('games:changed', { gameId }))
+      .catch((err) => console.warn('[artwork] arte do dump falhou', err));
+
+  const storeDeps: StoreLibraryDeps = {
+    programData: deps.programDataDir,
+    localAppData: deps.localAppDataDir,
+    appData: appDataDir,
+    tempDir: deps.tempDir,
+    steamFallbackDirs: deps.programDirs.map((dir) => path.join(dir, 'Steam')),
+    steamDir: deps.steamDirOverride,
+  };
+  const libraryImport = new LibraryImportService(games, {
+    onScanProgress: (progress) => emit('library:scan-progress', progress),
+    onAddProgress: (progress) => emit('library:add-progress', progress),
+    onGameAdded: (game) => maintenance.gameAdded(game.id),
+  }, storeDeps);
+
+  const steamRoot = () => findSteamRoot(storeDeps);
+
+  const steamShortcuts = new SteamShortcutService({
+    steamRoot,
+    steamRunning: isSteamRunning,
+    games,
+    launchSpecFor: (game) => launcher.launchSpecFor(game),
+    artworkFile: (url) => artwork.resolve(url),
+    downloadImage: fetchImage,
+    repo: new SettingsRepository(db),
+    backupDir: path.join(userDataDir, 'steam-backups'),
+    launcherExe: deps.launcherExe,
+  });
+
+  /** Jogo da Steam: capa, fundo e tempo de jogo que ela já tem no PC (antes do SteamGridDB completar). */
+  async function applySteamData(gameId: number): Promise<Game | null> {
+    const game = games.get(gameId);
+    if (!game.steamAppId) return null;
+    const root = await steamRoot();
+    if (!root) return null;
+    const [art, app] = await Promise.all([steamArtwork(root, game.steamAppId), findSteamApp(root, game.steamAppId)]);
+    return games.applySteamData(gameId, {
+      coverPath: art.cover,
+      backgroundPath: art.background,
+      playtime: app ? await steamPlaytime(root, app) : null,
+    });
+  }
+
+  const categories = new CategoryService({
+    repo: new CategoryRepository(db),
+    games,
+    hasPs4Trophies: (gameId) => trophyRepo.getSet(gameId)?.source === 'ps4',
+  });
+  // Uma categoria por console, antes da janela abrir (rápido: só consulta o que já foi oferecido).
+  try {
+    categories.ensureConsoleCategories();
+  } catch (err) {
+    console.warn('[categories] categorias de console falharam', err);
+  }
+
+  /** Tarefas de fundo da biblioteca, num só lugar para a ordem ficar explícita. */
+  const maintenance = {
+    /** Jogo com argumentos alterados: troféus e arte do dump em segundo plano. */
+    gameChanged(gameId: number): void {
+      void trophies.queueAutoImport(gameId);
+      void applyDumpArtwork(gameId);
+    },
+    /**
+     * Jogo novo: além de troféus e arte, entra na categoria da sua plataforma (se ela existir).
+     * A categoria espera a importação de troféus: é ela que revela um port de PS4.
+     */
+    gameAdded(gameId: number, origin: 'library' | 'store' = 'library'): void {
+      // Arte do dump primeiro (é a oficial); depois o SteamGridDB completa o que faltar. Ports da
+      // Loja já recebem a arte deles em afterPortInstall: não disputam a mesma capa.
+      void applyDumpArtwork(gameId)
+        .then(() => applySteamData(gameId).catch((err) => console.warn('[steam] arte/tempo da Steam falharam', err)))
+        .then((game) => game && emit('games:changed', { gameId }))
+        .then(() => (origin === 'store' ? null : gameArt.autoFill(gameId)))
+        .then((game) => game && emit('games:changed', { gameId }))
+        .catch((err) => console.warn('[art] arte automática falhou', err));
+      void trophies
+        .queueAutoImport(gameId)
+        .then(() => categories.assignNewGame(gameId))
+        .then((assigned) => assigned && emit('games:changed', { gameId }))
+        .catch((err) => console.warn('[categories] categoria automática falhou', err));
+    },
+    /** Na inicialização: caminhos primeiro (o resto depende deles), depois arte e troféus. */
+    async startup(): Promise<void> {
+      // Ports já instalados entram na categoria do seu console (os que ainda não têm categoria).
+      for (const install of storeRepo.list()) await categorizeStorePort(install.portId);
+      await installs.cleanupLeftovers();
+      await mods.cleanupLeftovers();
+      await relocation.repairLibrary().catch((err) => console.warn('[relocation] reparo inicial falhou', err));
+      const changed = await games.applyDumpArtworkToLibrary();
+      for (const game of changed) emit('games:changed', { gameId: game.id });
+      await trophies.scanLibrary();
+      // Troféus ganhos no RPCS3/Vita3K com o RetroVault fechado.
+      await trophies.syncAllEmulatorSets();
+      // Primeira proteção (e saves alterados com o app fechado): só grava o que mudou.
+      if (settings.get().autoBackupSaves) await saves.backupLibrary('initial');
+    },
+    /** A cada 15 min: pega saves de jogos abertos fora do RetroVault (ex.: "Play God of War III.exe"). */
+    async periodicSaveBackup(): Promise<void> {
+      if (!settings.get().autoBackupSaves) return;
+      for (const game of games.list()) {
+        if (launcher.runningGameIds().includes(game.id)) continue; // jogo aberto: espera fechar
+        backupSave(game.id, 'auto');
+      }
+    },
+  };
+
+  const github = new GitHubClient(cache, () => settings.getGitHubToken());
+  const store = new StoreCatalogService({
+    cache,
+    github,
+    // Configurações → Loja de ports; sem URL vale o catálogo embutido (seedCatalog.ts).
+    remoteUrl: () => settings.get().storeCatalogUrl,
+    // Função (e não a lista): customPorts é criado logo abaixo e lido a cada consulta.
+    customPorts: (): StorePort[] => customPorts.list(),
+  });
+  const storeArt = new StoreArtService({ artwork, repo: new StoreArtRepository(db), cache, sgdbKey: () => settings.getSgdbKey() });
+  const storeRepo = new StoreInstallRepository(db);
+  const customPorts = new CustomPortService({
+    repo: new CustomPortRepository(db),
+    github,
+    catalogPorts: async (): Promise<StorePort[]> => (await store.baseCatalog()).ports,
+    // Instalado ou instalando agora: tirar da Loja no meio do download deixaria a instalação órfã.
+    isInstalled: (portId) => !!storeRepo.get(portId) || installs.installing().includes(portId),
+  });
+  const roms = new RomService({ store, repo: storeRepo });
+  const mods = new ModService({
+    store,
+    installs: storeRepo,
+    repo: new ModInstallRepository(db),
+    gb: new GameBananaClient(cache),
+    importImage: (url) => storeArt.importRemote(url, { photo: true, remember: false, host: GAMEBANANA_IMAGE_HOST }),
+    workDir: path.join(deps.localAppDataDir, 'RetroVault', 'Ports', '.mods'),
+    isRunning: (gameId) => launcher.runningGameIds().includes(gameId),
+    onProgress: (progress) => emit('mods:progress', progress),
+  });
+  const gameArt = new GameArtService({
+    games,
+    sgdb: storeArt.sgdb,
+    importRemote: (url, opts) => storeArt.importRemote(url, opts),
+    sgdbKey: () => settings.getSgdbKey(),
+  });
+
+  /** Capa e fundo da Loja para o jogo do port (só onde ele ainda não tem arte). */
+  async function applyStoreArt(portId: string): Promise<void> {
+    const gameId = storeRepo.gameFor(portId);
+    if (!gameId) return;
+    try {
+      const art = await storeArt.art(await store.port(portId));
+      if (games.applyArtworkIfMissing(gameId, { cover: art.cover, background: art.hero })) emit('games:changed', { gameId });
+    } catch (err) {
+      console.warn('[store] arte do jogo instalado falhou', portId, err);
+    }
+  }
+
+  /** Jogo do port na categoria do console original (só se ele ainda não tiver categoria). */
+  async function categorizeStorePort(portId: string): Promise<void> {
+    const gameId = storeRepo.gameFor(portId);
+    if (!gameId) return;
+    try {
+      if (categories.assignPortGame(gameId, (await store.port(portId)).original)) emit('games:changed', { gameId });
+    } catch (err) {
+      console.warn('[categories] categoria do port falhou', portId, err);
+    }
+  }
+
+  /** Port instalado: a ROM volta para o lugar, o jogo ganha a arte da Loja e a categoria do console. */
+  async function afterPortInstall(portId: string): Promise<void> {
+    await roms.reapply(portId);
+    await applyStoreArt(portId);
+    await categorizeStorePort(portId);
+  }
+
+  /**
+   * Verificação de fundo das atualizações dos ports instalados (as versões ficam 1 h em cache, com ETag).
+   * Avisa a tela sempre; o Windows só uma vez por versão nova de cada port.
+   */
+  async function checkPortUpdates(): Promise<void> {
+    if (storeRepo.list().length === 0) return;
+    const found = await installs.updates();
+    emit('store:updates-changed', { count: Object.keys(found).length });
+    if (!settings.get().notifyPortUpdates) return;
+    const fresh: string[] = [];
+    for (const [portId, update] of Object.entries(found)) {
+      const key = `notified-update:${portId}`;
+      if (cache.peek<string>(key) === update.tag) continue;
+      cache.set(key, update.tag, NOTIFIED_TTL_MS);
+      fresh.push((await store.port(portId).catch(() => null))?.name ?? portId);
+    }
+    if (fresh.length === 1) notify(`Atualização disponível: ${fresh[0]}`, 'Uma versão nova está na Loja de ports.');
+    else if (fresh.length > 1) {
+      notify(`${fresh.length} ports com atualização`, `${fresh.slice(0, 3).join(', ')}${fresh.length > 3 ? '…' : ''}. Abra a Loja para atualizar.`);
+    }
+  }
+
+  /** Chave do SteamGridDB recém-conectada: dá capa aos ports que já estavam instalados. */
+  async function applyStoreArtToLibrary(): Promise<void> {
+    for (const install of storeRepo.list()) await applyStoreArt(install.portId);
+  }
+
+  const installs = new InstallService({
+    store,
+    repo: storeRepo,
+    afterInstall: afterPortInstall,
+    root: path.join(deps.localAppDataDir, 'RetroVault', 'Ports'),
+    games,
+    isRunning: (gameId) => launcher.runningGameIds().includes(gameId),
+    async backupSave(gameId) {
+      // "auto": só cria uma versão no cofre se o save mudou desde a última.
+      const snapshot = await saves.backup(gameId, 'auto');
+      if (snapshot) emit('saves:changed', { gameId });
+    },
+    trash: deps.trash,
+    runInstaller: deps.runInstaller,
+    pickExecutable: deps.pickExecutable,
+    onProgress: (progress) => emit('store:install-progress', progress),
+    onGameAdded: (gameId) => maintenance.gameAdded(gameId, 'store'),
+  });
+
+  /** Imagem pública do jogo para o Discord: capa do RetroAchievements ou do catálogo da Loja. */
+  async function publicImageOf(game: Game): Promise<string | null> {
+    if (game.raGameId) {
+      const progress = await ra.getGameProgress(game.raGameId).catch(() => null);
+      if (isDiscordImage(progress?.boxArtUrl)) return progress.boxArtUrl;
+    }
+    const install = storeRepo.list().find((i) => i.gameId === game.id);
+    if (install) {
+      const art = (await store.port(install.portId).catch(() => null))?.art;
+      for (const url of [art?.boxart, art?.logo]) if (isDiscordImage(url)) return url;
+    }
+    return null;
+  }
+
+  const discord = new DiscordPresenceService({
+    clientId: DISCORD_CLIENT_ID,
+    enabled: () => settings.get().discordPresence,
+    fallbackImageUrl: DISCORD_FALLBACK_IMAGE,
+    describe: async (game) => ({
+      platform: (await categories.platformOf(game).catch(() => null)) ?? (game.kind === 'executable' ? 'PC' : null),
+      imageUrl: await publicImageOf(game),
+    }),
+  });
+
+  const appUpdate = new AppUpdateService({
+    ...deps.appUpdate,
+    emit: (state) => emit('app:update-changed', state),
+    busyReason: () => {
+      const ports = installs.installing().length;
+      return ports ? `Espere ${ports === 1 ? 'o port terminar' : `os ${ports} ports terminarem`} de instalar (ou cancele) antes de reiniciar.` : null;
+    },
+  });
+
+  settings.onChange((next, prev) => {
+    if (next.raUsername !== prev.raUsername || next.hasApiKey !== prev.hasApiKey) {
+      ra.invalidateAllUserData();
+    }
+    // Pacotes que falharam por falta de chave são importados assim que ela é cadastrada.
+    if (next.hasTrophyKey && !prev.hasTrophyKey) void trophies.scanLibrary();
+    if (next.storeCatalogUrl !== prev.storeCatalogUrl) store.invalidate();
+    if (next.hasSgdbKey !== prev.hasSgdbKey) storeArt.invalidate();
+    if (next.discordPresence !== prev.discordPresence) discord.settingsChanged();
+  });
+
+  return { settings, cache, ra, retroarch, artwork, games, launcher, snapshots, watcher, trophies, trophyWatcher, relocation, maintenance, backups, progress, libraryImport, saves, cloud, exportProgressNextToVault, categories, store, github, installs, roms, storeArt, applyStoreArtToLibrary, gameArt, checkPortUpdates, customPorts, mods, appUpdate, discord, emulators, steamShortcuts, openExternal: deps.openExternal };
+}
+
+export type Container = ReturnType<typeof createContainer>;

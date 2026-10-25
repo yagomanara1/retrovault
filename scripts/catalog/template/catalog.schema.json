@@ -1,0 +1,142 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "catalog.schema.json",
+  "title": "Catálogo da Loja de ports do RetroVault",
+  "description": "Ajuda do editor (sugestões e erros enquanto se digita). A regra oficial é o tools/validate.mjs, que usa a validação do próprio app.",
+  "type": "object",
+  "required": ["schemaVersion", "ports"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "description": "Versão do formato. O RetroVault atual lê a versão 1.", "const": 1 },
+    "ports": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/definitions/port" } }
+  },
+  "definitions": {
+    "artUrl": {
+      "type": "string",
+      "pattern": "^https://(raw\\.githubusercontent\\.com|cdn2\\.steamgriddb\\.com)/",
+      "description": "Só https://raw.githubusercontent.com (arquivo do repositório) ou o CDN do SteamGridDB."
+    },
+    "port": {
+      "type": "object",
+      "required": ["id", "name", "original", "developer", "summary", "description", "source", "assets", "requires"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,39}$", "description": "Identificador único, em minúsculas e com hífens (ex.: \"zelda64recomp\"). Não mude depois de publicado: é ele que liga a instalação do usuário ao port." },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Nome do port na Loja." },
+        "original": {
+          "type": "object",
+          "required": ["title", "platform"],
+          "properties": {
+            "title": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Jogo original (também é o nome buscado no SteamGridDB)." },
+            "platform": {
+              "description": "Ícone/família do console original (define o ícone e a categoria).",
+              "enum": ["playstation", "ps2", "ps3", "ps4", "psp", "vita", "nes", "snes", "n64", "gamecube", "wii", "wiiu", "switch", "gameboy", "gbc", "gba", "ds", "n3ds", "virtualboy", "pokemini", "xbox", "xbox360", "sega", "mastersystem", "gamegear", "sg1000", "sega32x", "segacd", "saturn", "dreamcast", "pcengine", "pcenginecd", "atari2600", "atari7800", "lynx", "ngp", "wonderswan", "colecovision", "vectrex", "msx", "arcade", "pc", "gamepad", "star", "heart", "trophy", "folder", "flag"]
+            },
+            "system": { "type": "string", "minLength": 1, "maxLength": 40, "description": "Nome exato do console quando o ícone é o da família (ex.: \"PlayStation 2\", \"Xbox 360\", \"Wii U\")." }
+          },
+          "additionalProperties": false
+        },
+        "developer": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Uma frase, aparece na lista." },
+        "description": { "type": "string", "maxLength": 2000 },
+        "tags": { "type": "array", "maxItems": 12, "items": { "type": "string", "minLength": 1, "maxLength": 30 } },
+        "source": {
+          "type": "object",
+          "required": ["type", "repo"],
+          "properties": {
+            "type": { "const": "github" },
+            "repo": { "type": "string", "pattern": "^[\\w.-]{1,100}/[\\w.-]{1,100}$", "description": "dono/repositório no GitHub (as versões vêm das Releases)." }
+          },
+          "additionalProperties": false
+        },
+        "assets": {
+          "type": "object",
+          "required": ["windows"],
+          "properties": {
+            "windows": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Regex (sem diferenciar maiúsculas) do arquivo de Windows na release. Ex.: \"windows-x64\\\\.zip$\". Aceita .zip, .7z, .tar.gz, .exe e .msi." }
+          },
+          "additionalProperties": false
+        },
+        "executable": { "type": "string", "pattern": "^(?!.*\\.\\.)(?![\\\\/])(?![A-Za-z]:)[^<>:\"|?*\\u0000-\\u001f]{1,200}\\.[eE][xX][eE]$", "description": "Caminho do .exe dentro do pacote, relativo à pasta do port (ex.: \"x64/jogo.exe\")." },
+        "install": { "enum": ["archive", "portable", "installer"], "description": "Sem o campo, é deduzido pelo nome do arquivo." },
+        "installedExe": {
+          "type": "array",
+          "maxItems": 6,
+          "description": "Onde o instalador do projeto põe o .exe (só para install: installer).",
+          "items": { "type": "string", "pattern": "^%(LOCALAPPDATA|APPDATA|PROGRAMFILES|PROGRAMFILES\\(X86\\)|USERPROFILE)%\\\\" }
+        },
+        "requires": {
+          "type": "object",
+          "required": ["kind", "label"],
+          "properties": {
+            "kind": { "enum": ["rom", "game-files", "none"], "description": "none = jogo gratuito (nada a fornecer)." },
+            "label": { "type": "string", "minLength": 1, "maxLength": 160, "description": "O que o usuário precisa ter (ex.: \"ROM americana de Banjo-Kazooie (Nintendo 64)\")." },
+            "note": { "type": "string", "maxLength": 400 }
+          },
+          "additionalProperties": false
+        },
+        "setup": {
+          "type": "object",
+          "required": ["method", "instructions"],
+          "properties": {
+            "method": { "enum": ["copy", "in-app"], "description": "copy = o RetroVault põe a ROM conferida em \"target\"; in-app = o próprio port pede o arquivo." },
+            "target": { "type": "string", "description": "Destino da ROM (só com method: copy), relativo à pasta do port." },
+            "instructions": { "type": "string", "minLength": 1, "maxLength": 400 },
+            "accepted": {
+              "type": "array",
+              "maxItems": 50,
+              "description": "Versões aceitas da ROM: cada uma com sha1, md5, sha256 ou o cabeçalho (código do cartucho e revisão).",
+              "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+                  "sha1": { "type": "string", "pattern": "^[0-9a-fA-F]{40}$" },
+                  "md5": { "type": "string", "pattern": "^[0-9a-fA-F]{32}$" },
+                  "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+                  "header": {
+                    "type": "object",
+                    "required": ["code", "version"],
+                    "properties": { "code": { "type": "string", "pattern": "^[A-Z0-9]{4}$" }, "version": { "type": "integer", "minimum": 0, "maximum": 255 } },
+                    "additionalProperties": false
+                  }
+                },
+                "anyOf": [{ "required": ["sha1"] }, { "required": ["md5"] }, { "required": ["sha256"] }, { "required": ["header"] }],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "art": {
+          "type": "object",
+          "properties": {
+            "logo": { "$ref": "#/definitions/artUrl", "description": "Logo, ícone ou banner do projeto (aparece no topo da página e no bloco da Loja)." },
+            "boxart": { "$ref": "#/definitions/artUrl", "description": "Capa vertical do jogo (vira também a capa do jogo instalado)." }
+          },
+          "additionalProperties": false
+        },
+        "artQuery": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Nome para buscar no SteamGridDB, se for diferente do título original." },
+        "ai": { "enum": ["none", "assisted", "generated"], "description": "generated mostra o aviso antes de baixar; assisted, um selo discreto." },
+        "mods": {
+          "type": "object",
+          "description": "Mods do GameBanana: a Loja mostra os mods do jogo e instala os arquivos na pasta do port.",
+          "required": ["gamebanana", "folder", "extensions"],
+          "properties": {
+            "gamebanana": { "type": "integer", "minimum": 1, "description": "Id do jogo no GameBanana (gamebanana.com/games/<id>)." },
+            "folder": { "type": "string", "pattern": "^(?!.*\\.\\.)(?![\\\\/])(?![A-Za-z]:)[\\w .\\\\/-]{1,100}$", "description": "Pasta dos mods, relativa à pasta do port (ex.: \"mods\")." },
+            "extensions": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "type": "string", "pattern": "^\\.[a-zA-Z0-9]{1,8}$" }, "description": "Arquivos que o port carrega (ex.: [\".otr\", \".o2r\"])." }
+          },
+          "additionalProperties": false
+        },
+        "homepage": { "type": "string", "pattern": "^https://" },
+        "quiver": {
+          "description": "Slug da página do port no Quiver Launcher (o que vem depois de quiverlauncher.com/apps/). O app mostra o botão \"Ver no Quiver\".",
+          "type": "string",
+          "maxLength": 150,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

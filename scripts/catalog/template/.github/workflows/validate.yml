@@ -1,0 +1,24 @@
+# Confere o catalog.json com as mesmas regras do RetroVault a cada push e pull request.
+# Se falhar, o app ignoraria os ports com problema: corrija antes de publicar.
+name: Validar catálogo
+
+on:
+  push:
+    paths: ['catalog.json', 'tools/**', '.github/workflows/validate.yml']
+  pull_request:
+    paths: ['catalog.json', 'tools/**', '.github/workflows/validate.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validar catalog.json
+        run: node tools/validate.mjs catalog.json

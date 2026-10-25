@@ -1,0 +1,9 @@
+# Texto sempre com quebra de linha LF (como os arquivos já estão), em qualquer sistema.
+* text=auto eol=lf
+
+# Binários: nunca converter.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.exe binary

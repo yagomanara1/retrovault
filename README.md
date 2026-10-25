@@ -21,7 +21,7 @@ troféus, cofre de saves na nuvem e uma **Loja de ports** de código aberto.
 - [Saves e nuvem](#saves-e-nuvem)
 - [Mais recursos](#mais-recursos)
 - [Instalar](#instalar) · [Primeiros passos](#primeiros-passos) · [Desinstalar](#desinstalar)
-- [Segurança e privacidade](#segurança-e-privacidade) · [Créditos](#créditos)
+- [Segurança e privacidade](#segurança-e-privacidade) · [Código aberto](#código-aberto) · [Créditos](#créditos)
 
 ## Biblioteca
 
@@ -155,6 +155,24 @@ guardados em `%APPDATA%\RetroVault`. Se reinstalar, está tudo lá. Para apagar 
   que o projeto publicou (SHA-256).
 - **Atualizações do RetroVault** só vêm desta página e são conferidas (SHA-512) antes de instalar.
 - **Nunca rode comandos** que alguém mandar em issues ou comentários dizendo que "corrigem" algo.
+
+## Código aberto
+
+O RetroVault é código aberto, sob a [licença MIT](LICENSE): você pode ler, usar, modificar e redistribuir.
+
+- **Rodar o projeto:** Node.js 20 ou mais recente, depois:
+  ```powershell
+  git clone https://github.com/yagomanara1/retrovault.git
+  cd retrovault
+  npm install
+  npm run dev
+  ```
+- **Como funciona por dentro:** [docs/DESENVOLVIMENTO.md](docs/DESENVOLVIMENTO.md) (arquitetura, banco de dados,
+  cada recurso e as decisões tomadas). **Publicar uma versão:** [docs/PUBLICAR.md](docs/PUBLICAR.md).
+- **Tecnologias:** Electron, React e TypeScript, com SQLite e testes automáticos (`npm test`).
+- **Contribuir:** abra uma [issue](https://github.com/yagomanara1/retrovault/issues) para conversar sobre a ideia
+  e depois um pull request, com testes para o que mudou. Rode `npm run typecheck` e `npm test` antes de enviar.
+- **Código de terceiros e créditos de ideias:** [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Créditos
 

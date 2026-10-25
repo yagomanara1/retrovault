@@ -1,0 +1,76 @@
+/* ==========================================================================
+   RetroVault — tokens do tema (macOS Sonoma, modo escuro)
+   Todas as cores, raios, sombras e fontes saem daqui.
+   ========================================================================== */
+
+:root {
+  /* Superfícies (estilo PS5: vidro escuro sobre a arte desfocada do fundo de ambiente) */
+  --window: #0d1017;
+  --toolbar: rgba(13, 16, 23, 0.82);
+  --card: rgba(16, 19, 27, 0.72); /* opaco o bastante para dispensar backdrop-filter (mais leve) */
+  --card-solid: #171b24;
+  --row: rgba(255, 255, 255, 0.035);
+  --row-hover: rgba(255, 255, 255, 0.07);
+  --control: rgba(255, 255, 255, 0.1);
+  --control-hover: rgba(255, 255, 255, 0.15);
+  --field: rgba(255, 255, 255, 0.06);
+  --selection: rgba(255, 255, 255, 0.11);
+  --separator: rgba(255, 255, 255, 0.09);
+  --border: rgba(255, 255, 255, 0.1);
+  --sheet: #2a2a2c;
+
+  /* Texto (label / secondaryLabel / tertiaryLabel) */
+  --text: rgba(255, 255, 255, 0.86);
+  --text-strong: #ffffff;
+  --muted: rgba(235, 235, 245, 0.56);
+  --faint: rgba(235, 235, 245, 0.32);
+
+  /* Cores do sistema (modo escuro) */
+  --accent: #0a84ff;
+  --accent-hover: #2b95ff;
+  --accent-soft: rgba(10, 132, 255, 0.16);
+  --green: #30d158;
+  --green-strong: #248a3d; /* botão "Jogar": contraste AA com texto branco */
+  --orange: #ff9f0a;
+  --red: #ff453a;
+  --yellow: #ffd60a;
+  --gold: #e5b143;
+  --gold-soft: rgba(229, 177, 67, 0.14);
+  --success: var(--green);
+  --warning: var(--orange);
+  --danger: var(--red);
+
+  /* Compatibilidade com nomes antigos usados nas telas */
+  --bg: var(--window);
+  --panel: var(--card-solid);
+  --panel-2: #303032;
+  --panel-hover: var(--row-hover);
+  --accent-strong: var(--accent);
+  --play-1: var(--green);
+
+  /* Forma */
+  --radius: 7px; /* controles */
+  --radius-lg: 12px; /* cartões */
+  --radius-xl: 16px; /* janelas internas, hero */
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.38), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  --highlight: inset 0 0.5px 0 rgba(255, 255, 255, 0.18); /* brilho no topo dos controles */
+  --focus: 0 0 0 3px rgba(10, 132, 255, 0.55);
+
+  /* Tipografia: Inter (embutida) é a mais próxima da San Francisco fora do Mac */
+  --font: 'Inter Variable', 'SF Pro Text', -apple-system, 'Segoe UI Variable Text', 'Segoe UI', sans-serif;
+  --font-mono: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
+
+  /* Movimento: só transform/opacity são animados (GPU); durações e curvas num lugar só. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* desacelera suave no fim (hover, entradas) */
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1); /* leve ressalto: o "pop" do foco do PS5 */
+  --dur-fast: 180ms;
+  --dur-med: 380ms;
+  --dur-slow: 560ms;
+
+  /* Janela: barra de ferramentas integrada e espaço dos botões do Windows (─ □ ✕) */
+  --toolbar-height: 52px;
+  --window-controls-width: 140px;
+
+  color-scheme: dark;
+}

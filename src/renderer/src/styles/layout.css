@@ -1,0 +1,288 @@
+/* ==========================================================================
+   Layout da janela (estilo PlayStation 5, sem barra lateral)
+   ┌───────────────────────────────────────────────────── ─ □ ✕ ┐
+   │ ‹ ›                                   (barra de título, arrasta) │  ← transparente, por cima
+   │ Título da tela            🔍 🏠 ＋ 📁 🏷 ▦ 🏆 ⚙ (avatar) 00:43 │  ← .console-bar (fora da Início)
+   │                                                              │
+   │   conteúdo (.app__content, rola sozinho) sobre o fundo        │
+   │   de ambiente (arte do jogo desfocada)                        │
+   └──────────────────────────────────────────────────────────────┘
+   A tela inicial (ConsoleHome) desenha o próprio topo e a arte em tela cheia.
+   ========================================================================== */
+
+/*
+ * Toda área com rolagem própria precisa ser `position: relative`: sem isso, filhos absolutos
+ * (ex.: .sr-only das linhas de troféu) se posicionam em relação ao <body> e esticam a página,
+ * criando uma segunda barra de rolagem vazia.
+ */
+.app__content,
+.cascade__list,
+.cascade__panel,
+.modal__body,
+.search-results,
+.scan-review__list {
+  position: relative;
+}
+
+.app {
+  height: 100%;
+}
+
+.app__main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  background: var(--window);
+  isolation: isolate;
+}
+
+/* Barra de título: transparente por cima de tudo; arrasta a janela; ‹ › à esquerda. */
+.titlebar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 5;
+  height: var(--toolbar-height);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 calc(var(--window-controls-width) + 12px) 0 14px;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+.titlebar button,
+.titlebar a,
+.titlebar input,
+.titlebar select {
+  -webkit-app-region: no-drag;
+}
+.titlebar__nav {
+  display: flex;
+  gap: 2px;
+}
+.titlebar .btn--ghost {
+  color: rgba(255, 255, 255, 0.75);
+}
+/* O título visível fica na .console-bar (ou na arte da tela inicial). */
+.titlebar__title {
+  display: none;
+}
+
+/* Fundo de ambiente das telas de sistema: arte do jogo bem desfocada e escurecida. */
+.ambient {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 20% 0%, #1b2440 0%, #0d1017 60%);
+}
+.ambient__art {
+  position: absolute;
+  inset: -80px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(60px) saturate(1.4) brightness(0.42);
+  animation: ambient-in 0.8s ease both;
+}
+@keyframes ambient-in {
+  from {
+    opacity: 0;
+  }
+}
+.ambient__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 10, 16, 0.35) 0%, rgba(8, 10, 16, 0.75) 100%);
+}
+
+/* Topo das telas de sistema: título grande à esquerda, menu de ícones e relógio à direita. */
+.console-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: calc(var(--toolbar-height) - 2px) 44px 6px;
+  color: #fff;
+  user-select: none;
+}
+.console-bar__title {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.app__content:focus {
+  box-shadow: none;
+}
+/* A tela inicial ocupa a janela inteira e não rola. */
+.app__content--home {
+  overflow: hidden;
+}
+
+.page {
+  padding: 18px 44px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1500px;
+}
+/* O título visível fica na .console-bar; o <h1> continua para leitores de tela. */
+.page__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.section-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+/* ---------- Cascata (lista à esquerda, conteúdo à direita) ---------- */
+
+.cascade {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.cascade__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+}
+.cascade__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  padding: 4px;
+  margin: -4px;
+}
+.cascade__item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  text-align: left;
+  transition:
+    background var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    transform var(--dur-med) var(--ease-spring),
+    box-shadow var(--dur-med) var(--ease-out);
+}
+.cascade__item:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+/* Ativo: como o foco do PS5, um cartão claro que salta à frente. */
+.cascade__item--active,
+.cascade__item--active:hover {
+  background: rgba(255, 255, 255, 0.94);
+  color: #0b0d12;
+  transform: scale(1.015);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+.cascade__item:focus-visible {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px rgba(10, 132, 255, 0.85);
+}
+.cascade__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+/* Só a imagem direta: o ladrilho da Loja (.port-tile) dentro do ícone encaixa a capa inteira sozinho. */
+.cascade__icon > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cascade__item--active .cascade__icon {
+  background: rgba(11, 13, 18, 0.1);
+}
+.cascade__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.cascade__label {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cascade__description {
+  font-size: 12px;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cascade__trailing {
+  flex-shrink: 0;
+}
+.cascade__panel {
+  min-width: 0;
+  animation: cascade-in var(--dur-med) var(--ease-out) both;
+}
+.cascade__panel:focus-visible {
+  box-shadow: none;
+}
+@keyframes cascade-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+
+@media (max-width: 960px) {
+  .cascade {
+    grid-template-columns: 1fr;
+  }
+  .cascade__nav {
+    position: static;
+  }
+  .cascade__list {
+    max-height: none;
+  }
+}
+@media (max-width: 860px) {
+  .page,
+  .console-bar {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}

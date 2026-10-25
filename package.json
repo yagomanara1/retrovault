@@ -1,0 +1,87 @@
+{
+  "name": "retrovault",
+  "productName": "RetroVault",
+  "version": "0.1.2",
+  "description": "Launcher estilo Steam para ROMs (RetroArch) e executáveis, com conquistas do RetroAchievements.",
+  "main": "./out/main/index.js",
+  "author": "Yago Manara",
+  "homepage": "https://github.com/yagomanara1/retrovault",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "npm run typecheck && electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/renderer/tsconfig.json",
+    "test": "node scripts/test.mjs",
+    "test:watch": "node scripts/test.mjs watch",
+    "catalog:repo": "node scripts/catalog-repo.mjs",
+    "icon": "node scripts/icon.mjs",
+    "release:check": "node scripts/release-check.mjs",
+    "package": "npm run test && npm run build && electron-builder --win --dir",
+    "dist": "npm run test && npm run build && electron-builder --win --publish never",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "better-sqlite3": "12.11.1",
+    "electron-updater": "6.3.9",
+    "yauzl": "3.4.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@fontsource-variable/inter": "5.1.0",
+    "@tanstack/react-query": "^5.62.7",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.16",
+    "@types/react-dom": "^18.3.5",
+    "@types/yauzl": "3.4.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.3.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "2.1.9"
+  },
+  "build": {
+    "appId": "com.retrovault.app",
+    "productName": "RetroVault",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RetroVault",
+      "artifactName": "RetroVault-Setup-${version}.${ext}",
+      "uninstallDisplayName": "RetroVault",
+      "deleteAppDataOnUninstall": false,
+      "language": "1046",
+      "multiLanguageInstaller": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "yagomanara1",
+        "repo": "retrovault",
+        "releaseType": "release"
+      }
+    ]
+  }
+}
