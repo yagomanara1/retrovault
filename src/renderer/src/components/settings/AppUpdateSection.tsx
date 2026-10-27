@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { ProgressBar } from '../ui/ProgressBar';
 import { useToast } from '../ui/Toast';
 import { AlertIcon, CheckIcon, DownloadIcon, LinkIcon, RefreshIcon } from '../ui/icons';
+import { SettingsPanel } from './SettingsPanel';
 
 /** Uma linha para a lista das Configurações (e para o resumo da seção). */
 export function appUpdateSummary(state: AppUpdateState | undefined): string {
@@ -44,15 +45,15 @@ export function AppUpdateSection() {
   const busy = state.phase === 'checking' || state.phase === 'downloading' || check.isPending;
 
   return (
-    <section className="panel" aria-labelledby="app-update-heading">
-      <header className="panel__header">
-        <h2 id="app-update-heading" className="panel__title">
-          Atualizações do RetroVault
-        </h2>
+    <SettingsPanel
+      id="app-update"
+      title="Atualizações do RetroVault"
+      actions={
         <Button variant="ghost" size="sm" icon={<LinkIcon size={14} />} onClick={() => void call('app:open-external', state.releasesUrl)}>
           Notas das versões
         </Button>
-      </header>
+      }
+    >
       <p className="muted">
         Você está na versão <strong>{state.current}</strong>. O RetroVault confere se há versão nova ao abrir e a cada 6 horas, baixa em segundo
         plano e confere o arquivo antes de instalar. Seus jogos, troféus e configurações continuam onde estão.
@@ -124,6 +125,6 @@ export function AppUpdateSection() {
           )}
         </div>
       )}
-    </section>
+    </SettingsPanel>
   );
 }

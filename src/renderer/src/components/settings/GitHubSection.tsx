@@ -9,6 +9,7 @@ import { ProgressBar } from '../ui/ProgressBar';
 import { Skeleton } from '../ui/States';
 import { useToast } from '../ui/Toast';
 import { CheckIcon, LinkIcon } from '../ui/icons';
+import { SettingsPanel } from './SettingsPanel';
 
 /** Página do GitHub que cria um token fine-grained (o padrão já é só leitura de repositórios públicos). */
 const NEW_TOKEN_URL = 'https://github.com/settings/personal-access-tokens/new';
@@ -51,12 +52,7 @@ export function GitHubSection() {
   }
 
   return (
-    <section className="panel" aria-labelledby="github-heading">
-      <header className="panel__header">
-        <h2 id="github-heading" className="panel__title">
-          Conta do GitHub
-        </h2>
-      </header>
+    <SettingsPanel id="github" title="Conta do GitHub">
       <p className="muted">
         A Loja consulta as versões dos ports no GitHub. Sem conta, o GitHub permite 60 consultas por hora; com a sua conta
         vinculada, 5.000. O token é só de leitura, fica cifrado no Windows (DPAPI) e não dá acesso a nada privado.
@@ -138,6 +134,6 @@ export function GitHubSection() {
           </form>
         </>
       )}
-    </section>
+    </SettingsPanel>
   );
 }

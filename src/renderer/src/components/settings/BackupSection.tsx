@@ -7,6 +7,7 @@ import { Button } from '../ui/Button';
 import { ErrorState, Skeleton } from '../ui/States';
 import { useToast } from '../ui/Toast';
 import { FolderIcon, PlusIcon, RefreshIcon } from '../ui/icons';
+import { SettingsPanel } from './SettingsPanel';
 
 const KIND_LABEL: Record<BackupKind, string> = {
   auto: 'Automático',
@@ -46,15 +47,15 @@ export function BackupSection() {
   }
 
   return (
-    <section className="panel" aria-labelledby="backup-heading">
-      <header className="panel__header">
-        <h2 id="backup-heading" className="panel__title">
-          Backup e progresso
-        </h2>
+    <SettingsPanel
+      id="backup"
+      title="Backup e progresso"
+      actions={
         <Button variant="ghost" size="sm" icon={<FolderIcon size={14} />} onClick={() => void call('backup:open-folder').catch(fail('Falha ao abrir a pasta'))}>
           Abrir pasta
         </Button>
-      </header>
+      }
+    >
       <p className="muted">
         Seus troféus e o tempo de jogo existem só aqui. O RetroVault faz um backup automático por dia (guarda os últimos 7)
         e outro antes de cada atualização. Para levar o progresso para outro PC ou guardar fora deste, exporte-o.
@@ -103,7 +104,7 @@ export function BackupSection() {
           ))}
         </ul>
       )}
-    </section>
+    </SettingsPanel>
   );
 }
 

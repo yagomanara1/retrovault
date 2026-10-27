@@ -8,6 +8,7 @@ import { SelectField, Switch } from '../ui/Form';
 import { LoadingBlock, Skeleton } from '../ui/States';
 import { useToast } from '../ui/Toast';
 import { AlertIcon, CheckIcon, RefreshIcon } from '../ui/icons';
+import { SettingsPanel } from './SettingsPanel';
 
 /** Resumo para a lista de seções das Configurações. */
 export function steamSummary(overview: SteamShortcutsOverview | undefined): string {
@@ -35,15 +36,15 @@ export function SteamSection() {
   }
 
   return (
-    <section className="panel" aria-labelledby="steam-heading">
-      <header className="panel__header">
-        <h2 id="steam-heading" className="panel__title">
-          Steam
-        </h2>
+    <SettingsPanel
+      id="steam"
+      title="Steam"
+      actions={
         <Button variant="ghost" size="sm" icon={<RefreshIcon size={14} />} loading={isFetching} onClick={() => void refetch()}>
           Verificar de novo
         </Button>
-      </header>
+      }
+    >
       <p className="muted">
         Leve jogos do RetroVault para a Steam como "jogo não-Steam": eles aparecem na biblioteca e no Big Picture, com o Steam Input
         (qualquer controle) e o overlay. Cada atalho abre o jogo direto (o executável, o RetroArch ou o emulador escolhido). Jogos da
@@ -63,7 +64,7 @@ export function SteamSection() {
         // Trocar de conta (ou recarregar) recomeça a seleção a partir do que está na Steam.
         <ShortcutEditor key={overview.accountId} overview={overview} onAccountChange={setAccountId} onReload={reload} />
       )}
-    </section>
+    </SettingsPanel>
   );
 }
 

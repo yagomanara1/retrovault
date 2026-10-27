@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Switch, TextField } from '../ui/Form';
 import { useToast } from '../ui/Toast';
 import { CheckIcon, DownloadIcon, LinkIcon } from '../ui/icons';
+import { SettingsPanel } from './SettingsPanel';
 
 const NEW_REPO_URL = 'https://github.com/new';
 const SGDB_API_PAGE = 'https://www.steamgriddb.com/profile/preferences/api';
@@ -27,12 +28,7 @@ export function StoreSection({ settings }: { settings: Settings }) {
 function UpdatesPanel({ settings }: { settings: Settings }) {
   const update = useUpdateSettings();
   return (
-    <section className="panel" aria-labelledby="port-updates-heading">
-      <header className="panel__header">
-        <h2 id="port-updates-heading" className="panel__title">
-          Atualizações dos ports
-        </h2>
-      </header>
+    <SettingsPanel id="port-updates" title="Atualizações dos ports">
       <Switch
         label="Avisar quando sair versão nova"
         description="O RetroVault confere os ports instalados ao abrir e a cada 6 horas. Com isto ligado, mostra uma notificação do Windows (uma vez por versão); o número no ícone da Loja aparece sempre."
@@ -40,7 +36,7 @@ function UpdatesPanel({ settings }: { settings: Settings }) {
         onChange={(notifyPortUpdates) => update.mutate({ notifyPortUpdates })}
         disabled={update.isPending}
       />
-    </section>
+    </SettingsPanel>
   );
 }
 
@@ -80,12 +76,7 @@ function CatalogPanel({ settings }: { settings: Settings }) {
   }
 
   return (
-    <section className="panel" aria-labelledby="catalog-heading">
-      <header className="panel__header">
-        <h2 id="catalog-heading" className="panel__title">
-          Catálogo online
-        </h2>
-      </header>
+    <SettingsPanel id="catalog" title="Catálogo online">
       <p className="muted">
         Com um <code>catalog.json</code> num repositório seu no GitHub, você inclui ou muda ports na Loja sem atualizar o RetroVault. O app confere o
         arquivo a cada 6 horas; um item com erro é ignorado sem derrubar os outros.
@@ -144,7 +135,7 @@ function CatalogPanel({ settings }: { settings: Settings }) {
           )}
         </div>
       </form>
-    </section>
+    </SettingsPanel>
   );
 }
 
@@ -167,12 +158,7 @@ function SteamGridDbPanel({ settings }: { settings: Settings }) {
   }
 
   return (
-    <section className="panel" aria-labelledby="sgdb-heading">
-      <header className="panel__header">
-        <h2 id="sgdb-heading" className="panel__title">
-          Capas (SteamGridDB)
-        </h2>
-      </header>
+    <SettingsPanel id="sgdb" title="Capas (SteamGridDB)">
       <p className="muted">
         Com uma chave grátis do SteamGridDB, a Loja mostra capa, banner, logo e ícone de cada jogo, e os ports instalados ganham capa na biblioteca
         (só onde ainda não há uma escolhida por você). Sem a chave, aparecem os logos que os projetos publicam. A chave fica cifrada no Windows.
@@ -223,6 +209,6 @@ function SteamGridDbPanel({ settings }: { settings: Settings }) {
           </form>
         </>
       )}
-    </section>
+    </SettingsPanel>
   );
 }
