@@ -14,10 +14,10 @@ import {
 } from '@shared/store';
 import type { StoreInstallRepository } from '../../db/repositories/storeInstallRepository';
 import { AppError } from '../../errors';
+import type { FetchFn } from '../http';
 import { isHelperExecutable } from '../libraryScanner';
 import type { StoreCatalogService } from './catalogService';
 import { downloadFile } from './downloader';
-import type { FetchFn } from './githubClient';
 import { extract7z, TAR_FORMATS } from './archive7z';
 import { carryUserFiles, listFiles, packageFilesOf, readManifest, writeManifest } from './userFiles';
 import { contentRoot, extractZip, safeEntryPath } from './zipExtract';

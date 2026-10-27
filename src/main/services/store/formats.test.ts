@@ -9,9 +9,9 @@ import { GameRepository } from '../../db/repositories/gameRepository';
 import { StoreInstallRepository } from '../../db/repositories/storeInstallRepository';
 import { AppError } from '../../errors';
 import { makeTree, useTempDir } from '../../testing/tempDir';
+import type { FetchFn } from '../http';
 import { checkListing, extract7z, systemTar, TAR_FORMATS } from './archive7z';
 import type { StoreCatalogService } from './catalogService';
-import type { FetchFn } from './githubClient';
 import { expandWindowsPath, InstallService } from './installService';
 
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');

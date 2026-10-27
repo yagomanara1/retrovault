@@ -9,9 +9,9 @@ import { StoreInstallRepository } from '../../db/repositories/storeInstallReposi
 import { AppError } from '../../errors';
 import { makeTree, useTempDir } from '../../testing/tempDir';
 import { buildZip } from '../../testing/zip';
+import type { FetchFn } from '../http';
 import type { StoreCatalogService } from './catalogService';
 import { downloadFile, isAllowedDownloadUrl } from './downloader';
-import type { FetchFn } from './githubClient';
 import { InstallService, isPortHelper, resolveExecutable, safeDirName, type InstallServiceDeps } from './installService';
 import { parseCatalog } from './catalogSchema';
 import { SEED_CATALOG } from './seedCatalog';

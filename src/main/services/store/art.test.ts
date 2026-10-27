@@ -8,9 +8,10 @@ import { StoreArtRepository } from '../../db/repositories/storeArtRepository';
 import { ApiCache } from '../apiCache';
 import { z } from 'zod';
 import { toIpcError } from '../../errors';
+import type { FetchFn } from '../http';
 import { isAllowedArtUrl, parseCatalog, toRawGitHubUrl } from './catalogSchema';
 import { StoreCatalogService } from './catalogService';
-import { GitHubClient, type FetchFn } from './githubClient';
+import { GitHubClient } from './githubClient';
 import { gitSymlinkTarget, imageFormat, pngFromIco, StoreArtService } from './storeArt';
 
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 7)]);

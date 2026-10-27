@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { openDatabase } from '../../db/database';
 import { CacheRepository } from '../../db/repositories/cacheRepository';
 import { ApiCache } from '../apiCache';
+import type { FetchFn } from '../http';
 import { CATALOG_SCHEMA_VERSION, parseCatalog, pickAsset } from './catalogSchema';
 import { StoreCatalogService } from './catalogService';
 import { GITHUB_TOKEN_PATTERN } from '@shared/store';
-import { GitHubClient, type FetchFn } from './githubClient';
+import { GitHubClient } from './githubClient';
 import { SEED_CATALOG } from './seedCatalog';
 
 // Nomes reais dos arquivos publicados (conferidos na API do GitHub em 23/10/2026).

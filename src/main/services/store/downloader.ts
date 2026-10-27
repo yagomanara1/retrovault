@@ -4,7 +4,7 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { AppError } from '../../errors';
-import type { FetchFn } from './githubClient';
+import { defaultFetch, type FetchFn } from '../http';
 
 /** Downloads dos ports só destes hosts (o GitHub redireciona os arquivos das versões para o CDN dele). */
 export const GITHUB_HOSTS: ReadonlySet<string> = new Set(['github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com']);
@@ -54,7 +54,7 @@ export function isAllowedDownloadUrl(url: string, hosts: ReadonlySet<string> = G
 export async function downloadFile(url: string, dest: string, options: DownloadOptions): Promise<{ sha256: string }> {
   const hosts = options.hosts ?? GITHUB_HOSTS;
   if (!isAllowedDownloadUrl(url, hosts)) throw new AppError('FORBIDDEN', 'Endereço de download fora dos sites permitidos.');
-  const fetchFn = options.fetchFn ?? ((u, init) => fetch(u, init));
+  const fetchFn = options.fetchFn ?? defaultFetch;
   const part = `${dest}.part`;
 
   // Sem dados por 60 s = conexão travada (o tempo total pode ser longo em internet lenta).

@@ -9,9 +9,9 @@ import { ModInstallRepository } from '../../db/repositories/modInstallRepository
 import { useTempDir } from '../../testing/tempDir';
 import { buildZip } from '../../testing/zip';
 import { ApiCache } from '../apiCache';
+import type { FetchFn } from '../http';
 import { GAMEBANANA_HOSTS, isAllowedDownloadUrl } from './downloader';
 import { GameBananaClient, htmlToText, type GbModDetails } from './gameBanana';
-import type { FetchFn } from './githubClient';
 import { ModService } from './modService';
 
 const md5 = (b: Buffer) => createHash('md5').update(b).digest('hex');
