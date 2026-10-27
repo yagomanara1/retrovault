@@ -254,7 +254,12 @@ export class StoreArtService {
     const known = remember ? this.deps.repo.get(url) : null;
     // Arquivo apagado do cofre fora do app: baixa de novo em vez de entregar um endereço quebrado.
     if (known && (await this.deps.artwork.has(known))) return known;
-    const response = await this.fetchFn(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    let response: Response;
+    try {
+      response = await this.fetchFn(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    } catch (err) {
+      throw new AppError('STORE_NETWORK', 'Sem conexão para baixar a imagem.', { cause: err });
+    }
     if (response.url && !allowed(response.url)) throw new AppError('FORBIDDEN', 'A imagem foi redirecionada para fora dos endereços permitidos.');
     if (!response.ok) throw new AppError('STORE_HTTP', `Imagem respondeu com erro ${response.status}.`);
     if (Number(response.headers.get('content-length')) > MAX_ART_BYTES) throw new AppError('VALIDATION', 'Imagem grande demais.');

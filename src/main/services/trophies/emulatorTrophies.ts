@@ -10,6 +10,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Game } from '@shared/types';
+import { compactKey } from '@shared/text';
 import { parseArgs } from '../fsUtils';
 import { parseTrophyXml, type ParsedTrophy } from './trp';
 
@@ -130,13 +131,7 @@ export interface EmulatorTrophyLocation {
   progressPath: string;
 }
 
-const titleKey = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[™®©]/g, '')
-    .replace(/[^a-z0-9]+/g, '');
+const titleKey = compactKey;
 
 // ---------- RPCS3 ----------
 

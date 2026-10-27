@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { type Dirent, promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { SaveSnapshot, SaveSnapshotReason } from '@shared/types';
+import { compactKey } from '@shared/text';
+import { z } from 'zod';
 import { AppError } from '../../errors';
 
 // Cofre de saves: <raiz>\<Título do jogo>\
@@ -38,10 +40,26 @@ interface Manifest {
   fingerprint: string;
 }
 
-export interface GameIdentity {
-  title: string;
-  /** Nome do executável ou da ROM, em minúsculas ("god of war iii.exe"). */
-  file: string;
+const GameIdentitySchema = z.object({
+  title: z.string(),
+  /** Nome do executável ou da ROM, em minúsculas ("god of war iii.exe"). Cofres antigos podem não ter. */
+  file: z.string().catch(''),
+});
+export type GameIdentity = z.infer<typeof GameIdentitySchema>;
+
+/**
+ * identity.json de uma pasta do cofre: `null` se não existe (não é pasta de jogo), `'invalid'` se está
+ * corrompido ou incompleto (ex.: cópia de conflito do OneDrive). Ler nunca lança.
+ */
+async function readIdentity(dir: string): Promise<GameIdentity | 'invalid' | null> {
+  const text = await fs.readFile(path.join(dir, 'identity.json'), 'utf8').catch(() => null);
+  if (text === null) return null;
+  try {
+    const parsed = GameIdentitySchema.safeParse(JSON.parse(text));
+    return parsed.success ? parsed.data : 'invalid';
+  } catch {
+    return 'invalid';
+  }
 }
 
 const KEEP_SNAPSHOTS = 15;
@@ -56,8 +74,6 @@ const stamp = (d = new Date()) => {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 };
 
-const normalize = (s: string) =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /** Nome de pasta seguro no Windows. */
 export function safeFolderName(title: string): string {
@@ -158,10 +174,10 @@ export async function mergeVaultInto(from: string, to: string, removeSource: boo
   for (const game of await fs.readdir(a, { withFileTypes: true }).catch(() => [] as Dirent[])) {
     if (!game.isDirectory()) continue;
     const src = path.join(a, game.name);
-    const identityText = await fs.readFile(path.join(src, 'identity.json'), 'utf8').catch(() => null);
-    if (!identityText) continue; // não é uma pasta de jogo do cofre
-    const identity = JSON.parse(identityText) as GameIdentity;
-    const existing = await new SaveVault(() => b).findGameDir(identity);
+    const identity = await readIdentity(src);
+    if (!identity) continue; // não é uma pasta de jogo do cofre
+    // Corrompido: sem como achar o par no destino, entra como jogo novo (nada se perde).
+    const existing = identity === 'invalid' ? null : await new SaveVault(() => b).findGameDir(identity);
     if (!existing) {
       let dest = path.join(b, game.name);
       for (let n = 2; await fs.stat(dest).then(() => true, () => false); n++) dest = path.join(b, `${game.name} (${n})`);
@@ -202,12 +218,9 @@ export class SaveVault {
     for (const d of dirs) {
       if (!d.isDirectory()) continue;
       const dir = path.join(root, d.name);
-      const stored = await fs
-        .readFile(path.join(dir, 'identity.json'), 'utf8')
-        .then((t) => JSON.parse(t) as GameIdentity)
-        .catch(() => null);
-      if (!stored) continue;
-      const sameTitle = normalize(stored.title) === normalize(identity.title);
+      const stored = await readIdentity(dir);
+      if (!stored || stored === 'invalid') continue;
+      const sameTitle = compactKey(stored.title) === compactKey(identity.title);
       const sameFile = !!stored.file && stored.file === identity.file;
       if (sameTitle && sameFile) return dir;
       if (sameTitle) byTitle ??= dir;

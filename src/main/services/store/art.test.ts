@@ -112,6 +112,13 @@ describe('StoreArtService', () => {
     expect(service.referencedArtwork()).toEqual([art.logo]);
   });
 
+  it('falta de internet ao baixar uma imagem vira STORE_NETWORK, como nos outros clientes', async () => {
+    const { service } = setup(null, async () => {
+      throw new TypeError('fetch failed');
+    });
+    await expect(service.importRemote(PORT.art!.logo!, { photo: false })).rejects.toMatchObject({ code: 'STORE_NETWORK' });
+  });
+
   it('arquivo apagado do cofre fora do app: baixa de novo em vez de devolver um endereço quebrado', async () => {
     const log: string[] = [];
     const { service, removed } = setup(null, sgdbFetch(log));

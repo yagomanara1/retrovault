@@ -6,6 +6,7 @@ import type {
   RecentAchievement,
   UserProfile,
 } from '@shared/types';
+import { wordKey } from '@shared/text';
 import { AppError } from '../../errors';
 import type { ApiCache } from '../apiCache';
 import type { RaCredentials } from '../settingsService';
@@ -54,14 +55,7 @@ function backoffMs(attempt: number, retryAfter: string | null): number {
   return 500 * 2 ** attempt + Math.random() * 250;
 }
 
-function normalizeTitle(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
+const normalizeTitle = wordKey;
 
 /**
  * Cliente da Web API do RetroAchievements.

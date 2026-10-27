@@ -9,7 +9,7 @@ import { makeTree, useTempDir } from '../../testing/tempDir';
 import type { GameService } from '../gameService';
 import { SaveLocator } from './saveLocator';
 import { SaveService } from './saveService';
-import { moveVaultRoot, SaveVault } from './saveVault';
+import { mergeVaultInto, moveVaultRoot, SaveVault } from './saveVault';
 
 const tmp = useTempDir('rv-saves-');
 
@@ -181,5 +181,33 @@ describe('moveVaultRoot', () => {
     await moveVaultRoot(from, path.join(tmp(), 'OneDrive/Saves'));
     expect(await fs.readFile(path.join(tmp(), 'OneDrive/Saves/Jogo/identity.json'), 'utf8')).toBe('{}');
     await expect(fs.stat(from)).rejects.toThrow();
+  });
+});
+
+describe('mergeVaultInto', () => {
+  const identity = (title: string, file: string) => JSON.stringify({ title, file });
+
+  it('identity.json corrompido (cópia de conflito da nuvem) não interrompe a junção nem perde o save', async () => {
+    await makeTree(tmp(), {
+      'A/Quebrado/identity.json': '{"title": "Quebr',
+      'A/Quebrado/20260101-120000-auto/save.dat': 'progresso',
+      'A/Bom/identity.json': identity('Bom', 'bom.exe'),
+      'A/Bom/20260101-120000-auto/save.dat': 'ok',
+    });
+    const result = await mergeVaultInto(path.join(tmp(), 'A'), path.join(tmp(), 'B'), true);
+    expect(result.games).toBe(2);
+    expect(await fs.readFile(path.join(tmp(), 'B/Quebrado/20260101-120000-auto/save.dat'), 'utf8')).toBe('progresso');
+    expect(await fs.readFile(path.join(tmp(), 'B/Bom/20260101-120000-auto/save.dat'), 'utf8')).toBe('ok');
+  });
+});
+
+describe('SaveVault.findGameDir', () => {
+  it('ignora identity.json válido mas incompleto (sem título) em vez de quebrar', async () => {
+    await makeTree(tmp(), {
+      'Cofre/AAA sem titulo/identity.json': JSON.stringify({ file: 'jogo.exe' }), // lida antes de "Jogo"
+      'Cofre/Jogo/identity.json': JSON.stringify({ title: 'Jogo', file: 'jogo.exe' }),
+    });
+    const vault = new SaveVault(() => path.join(tmp(), 'Cofre'));
+    expect(await vault.findGameDir({ title: 'Jogo', file: 'jogo.exe' })).toBe(path.join(tmp(), 'Cofre/Jogo'));
   });
 });

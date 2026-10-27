@@ -12,7 +12,7 @@ import { buildZip } from '../../testing/zip';
 import type { StoreCatalogService } from './catalogService';
 import { downloadFile, isAllowedDownloadUrl } from './downloader';
 import type { FetchFn } from './githubClient';
-import { InstallService, resolveExecutable, safeDirName, type InstallServiceDeps } from './installService';
+import { InstallService, isPortHelper, resolveExecutable, safeDirName, type InstallServiceDeps } from './installService';
 import { parseCatalog } from './catalogSchema';
 import { SEED_CATALOG } from './seedCatalog';
 import { carryUserFiles, listFiles, readManifest, writeManifest } from './userFiles';
@@ -150,6 +150,17 @@ describe('resolveExecutable', () => {
     expect(path.basename(await resolveExecutable(tmp(), { name: 'x', executable: 'renomeado.exe' }))).toBe('sm64coopdx.exe');
   });
 
+  it('jogo com "crash" ou "update" no nome não é confundido com auxiliar', async () => {
+    await makeTree(tmp(), {
+      'Crash™ Team Racing Nitro-Fueled.exe': 'MZ jogo '.repeat(10),
+      'CrashReporter.exe': 'MZ relatório',
+      'Updater.exe': 'MZ atualizador',
+    });
+    expect(path.basename(await resolveExecutable(tmp(), { name: 'x', executable: 'renomeado.exe' }))).toBe(
+      'Crash™ Team Racing Nitro-Fueled.exe',
+    );
+  });
+
   it('sem executável vira erro claro', async () => {
     await makeTree(tmp(), { 'readme.txt': 'oi' });
     await expect(resolveExecutable(tmp(), { name: 'x' })).rejects.toMatchObject({ code: 'VALIDATION' });
@@ -161,6 +172,12 @@ describe('resolveExecutable', () => {
     for (const p of parseCatalog(SEED_CATALOG).ports) {
       if (p.install === 'portable' || p.install === 'installer') continue;
       expect(p.executable, p.id).toMatch(/\.exe$/);
+    }
+  });
+
+  it('nenhum executável do catálogo embutido é tratado como auxiliar', () => {
+    for (const p of parseCatalog(SEED_CATALOG).ports) {
+      if (p.executable) expect(isPortHelper(p.executable), `${p.id}: ${p.executable}`).toBe(false);
     }
   });
 

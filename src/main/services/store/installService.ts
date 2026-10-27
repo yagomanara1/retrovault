@@ -14,6 +14,7 @@ import {
 } from '@shared/store';
 import type { StoreInstallRepository } from '../../db/repositories/storeInstallRepository';
 import { AppError } from '../../errors';
+import { isHelperExecutable } from '../libraryScanner';
 import type { StoreCatalogService } from './catalogService';
 import { downloadFile } from './downloader';
 import type { FetchFn } from './githubClient';
@@ -22,8 +23,18 @@ import { carryUserFiles, listFiles, packageFilesOf, readManifest, writeManifest 
 import { contentRoot, extractZip, safeEntryPath } from './zipExtract';
 
 const PROGRESS_INTERVAL_MS = 150;
+/**
+ * Auxiliar com o nome do port na frente ("coopdx_updater", "game-crashreporter"). Só no fim do nome e depois de
+ * um separador: "Crash Team Racing.exe" e "UpdateSonic.exe" continuam sendo jogos.
+ */
+const HELPER_SUFFIX =
+  /(^|[_.\- ])(unins\w*|uninstall\w*|updater?|setup|installer|redist|helper|launcher_?config|crash_?(handler|report(er)?|pad|sender)|bug_?report(er)?)$/i;
+
 /** Executáveis que não são o jogo (atualizadores, desinstaladores, relatórios de erro…). */
-const HELPER_EXE = /(unins|updater|update|crash|report|redist|setup|install|helper|launcher_?config)/i;
+export function isPortHelper(file: string): boolean {
+  const name = path.basename(file);
+  return isHelperExecutable(name) || HELPER_SUFFIX.test(path.basename(name, path.extname(name)));
+}
 
 export interface InstallServiceDeps {
   store: StoreCatalogService;
@@ -114,7 +125,7 @@ export async function resolveExecutable(dir: string, port: Pick<StorePort, 'exec
     const target = safeEntryPath(dir, port.executable.replace(/\\/g, '/'));
     if (target && (await exists(target))) return target;
   }
-  const candidates = (await findExecutables(dir)).filter((f) => !HELPER_EXE.test(path.basename(f)));
+  const candidates = (await findExecutables(dir)).filter((f) => !isPortHelper(f));
   if (candidates.length === 0) throw new AppError('VALIDATION', 'Não encontrei o executável do port no pacote baixado.');
   // Mais raso primeiro (o principal costuma estar no topo); empate: o maior arquivo.
   const scored = await Promise.all(

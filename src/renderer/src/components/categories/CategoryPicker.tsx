@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { categoryIconOf } from '@shared/categoryIcons';
 import type { Game } from '@shared/types';
+import { foldDiacritics } from '@shared/text';
 import { useCategories, useCreateCategory, useSetGameCategories } from '@/hooks/queries';
 import { errorMessage } from '@/lib/api';
 import { Button } from '../ui/Button';
@@ -12,7 +13,7 @@ import { CategoryIcon } from './CategoryIcon';
 
 /** A partir de quantas categorias aparece a busca. */
 const FILTER_FROM = 8;
-const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const normalize = foldDiacritics;
 
 interface CategoryPickerProps {
   game: Game;

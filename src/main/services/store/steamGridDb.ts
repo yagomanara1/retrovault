@@ -1,3 +1,4 @@
+import { wordKey } from '@shared/text';
 import { AppError } from '../../errors';
 import { isAllowedArtUrl } from './catalogSchema';
 import type { FetchFn } from './githubClient';
@@ -31,13 +32,7 @@ const PATHS: Record<SgdbKind, (gameId: number) => string> = {
   icon: (id) => `/icons/game/${id}?${SAFE}`,
 };
 
-export const normalizeTitle = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
+export const normalizeTitle = wordKey;
 
 /**
  * Cliente da API v2 do SteamGridDB (chave do usuário, decifrada no main). Usado pela Loja e pela

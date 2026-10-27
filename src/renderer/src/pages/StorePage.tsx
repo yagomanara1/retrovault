@@ -2,6 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from '
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CATEGORY_ICONS } from '@shared/categoryIcons';
 import { QUIVER_SITE, type StorePort, type StoreRelease } from '@shared/store';
+import { foldDiacritics } from '@shared/text';
 import { PortBanner, PortTile } from '@/components/store/PortArtwork';
 import { Button } from '@/components/ui/Button';
 import { Cascade, type CascadeItem } from '@/components/ui/Cascade';
@@ -32,10 +33,7 @@ import { formatBytes, formatDate } from '@/lib/format';
  * Apóstrofos somem (juntam a palavra); o resto da pontuação vira espaço.
  */
 function normalize(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
+  return foldDiacritics(text)
     .replace(/['’`]/g, '')
     .replace(/[^a-z0-9]+/g, ' ');
 }

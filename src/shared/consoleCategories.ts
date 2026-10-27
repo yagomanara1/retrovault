@@ -3,6 +3,7 @@
 // jogo novo cair direto na categoria certa; os apelidos ligam a categoria que o usuário já tinha
 // ("PS4") ao console em vez de criar outra igual.
 import type { CategoryIconKey } from './categoryIcons';
+import { foldDiacritics } from './text';
 
 export interface ConsoleCategory {
   key: string;
@@ -61,13 +62,7 @@ export const CONSOLE_CATEGORIES: readonly ConsoleCategory[] = [
   { key: 'pc', name: 'PC', icon: 'pc', aliases: ['Windows', 'Computador'] },
 ];
 
-const normalize = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+const normalize = (s: string) => foldDiacritics(s).replace(/\s+/g, ' ').trim();
 
 const BY_KEY = new Map(CONSOLE_CATEGORIES.map((c) => [c.key, c]));
 const BY_NAME = new Map(CONSOLE_CATEGORIES.flatMap((c) => [c.name, ...c.aliases].map((n) => [normalize(n), c] as const)));

@@ -5,6 +5,7 @@
 // `glyph` reaproveita o desenho de outro ícone e `badge` escreve um selo curto no canto: assim cada
 // geração de uma família (PS2, PS3, PS4…) tem o seu ícone sem inventar silhuetas ilegíveis em 18 px.
 import { getConsoleCategory } from './consoleCategories';
+import { foldDiacritics } from './text';
 
 interface IconDef {
   label: string;
@@ -132,7 +133,7 @@ const AUTO: [RegExp, CategoryIconKey][] = [
   [/zerad|platin|complet|100 ?%/, 'trophy'],
 ];
 
-const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const normalize = foldDiacritics;
 
 /** Ícone sugerido pelo nome ("PlayStation 4" → ps4); sem correspondência, um controle genérico. */
 export function autoCategoryIcon(name: string): CategoryIconKey {

@@ -1,4 +1,5 @@
 import type { CustomPortInput, RepoAssetOption, RepoInspection, StorePort } from '@shared/store';
+import { foldDiacritics } from '@shared/text';
 import type { CustomPortRepository } from '../../db/repositories/customPortRepository';
 import { AppError } from '../../errors';
 import { pickAsset, portSchema } from './catalogSchema';
@@ -89,10 +90,7 @@ export function suggestOriginalTitle(name: string): string {
 }
 
 function slug(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
+  return foldDiacritics(text)
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 30);
