@@ -58,6 +58,11 @@ export function useStoreInstalls() {
   return useQuery({ queryKey: qk.storeInstalls, queryFn: () => call('store:installs'), staleTime: Infinity });
 }
 
+/** A instalação deste port (null = não instalado, ou a lista ainda não chegou). */
+export function useInstallFor(portId: string): StoreInstall | null {
+  return useStoreInstalls().data?.installs.find((i) => i.portId === portId) ?? null;
+}
+
 /** Atualizações dos ports instalados (o main usa as versões em cache; poucos ports, poucas consultas). */
 export function useStoreUpdates() {
   return useQuery({ queryKey: qk.storeUpdates, queryFn: () => call('store:updates'), staleTime: 10 * MIN });
