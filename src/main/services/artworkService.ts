@@ -30,7 +30,7 @@ export function isLocalArtwork(url: string | null | undefined): boolean {
 }
 
 /** Confere a assinatura do arquivo: a extensão sozinha não garante que é uma imagem. */
-function hasImageSignature(data: Buffer, format: StoredFormat): boolean {
+export function hasImageSignature(data: Buffer, format: StoredFormat): boolean {
   switch (format) {
     case 'png':
       return data.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
