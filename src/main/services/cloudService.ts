@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { CloudProvider, CloudProviderId } from '@shared/types';
+import { z } from 'zod';
 import { AppError } from '../errors';
 
 // "Nuvem" pelo aplicativo de sincronização que o usuário já tem (OneDrive, Google Drive, Dropbox):
@@ -57,11 +58,15 @@ export function parseTasklist(output: string): Set<string> {
   return names;
 }
 
+/** Uma conta do info.json; formato inesperado vale como "sem esta conta" (a outra ainda serve). */
+const DropboxAccount = z.object({ path: z.string() }).optional().catch(undefined);
+const DropboxInfoSchema = z.object({ personal: DropboxAccount, business: DropboxAccount });
+
 /** %LOCALAPPDATA%\Dropbox\info.json → pasta da conta pessoal (ou da empresa). */
 export function parseDropboxInfo(text: string): string | null {
   try {
-    const info = JSON.parse(text) as Record<string, { path?: string }>;
-    return info.personal?.path ?? info.business?.path ?? null;
+    const info = DropboxInfoSchema.safeParse(JSON.parse(text));
+    return info.success ? (info.data.personal?.path ?? info.data.business?.path ?? null) : null;
   } catch {
     return null;
   }

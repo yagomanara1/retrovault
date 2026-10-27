@@ -1,4 +1,5 @@
 import type { InstalledVersion, InstallKind, StoreInstall } from '@shared/store';
+import { z } from 'zod';
 import type { DB } from '../database';
 
 interface Row {
@@ -21,13 +22,26 @@ const SELECT = `
   FROM store_installs i
   LEFT JOIN store_port_games g ON g.port_id = i.port_id`;
 
+const PreviousSchema = z.object({
+  // Guardada antes da migração 14: sem "kind" (só existia archive).
+  kind: z.enum(['archive', 'portable', 'installer']).default('archive'),
+  tag: z.string(),
+  assetName: z.string(),
+  sha256: z.string(),
+  verified: z.boolean(),
+  installDir: z.string(),
+  exePath: z.string(),
+  sizeBytes: z.number(),
+  installedAt: z.string(),
+}) satisfies z.ZodType<InstalledVersion, unknown>;
+
 function parsePrevious(json: string | null): InstalledVersion | null {
   if (!json) return null;
   try {
-    // Guardada antes da migração 14: sem "kind" (só existia archive).
-    return { kind: 'archive', ...(JSON.parse(json) as Omit<InstalledVersion, 'kind'>) };
+    const parsed = PreviousSchema.safeParse(JSON.parse(json));
+    return parsed.success ? parsed.data : null;
   } catch {
-    return null; // coluna corrompida: só perde o "voltar", a instalação ativa continua valendo
+    return null; // coluna corrompida ou incompleta: só perde o "voltar", a instalação ativa continua valendo
   }
 }
 

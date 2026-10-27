@@ -201,6 +201,27 @@ describe('mergeVaultInto', () => {
   });
 });
 
+describe('SaveVault: manifesto de uma versão', () => {
+  const tmp = useTempDir();
+  const manifest = (over: object) =>
+    JSON.stringify({ version: 1, createdAt: '2026-10-01T12:00:00.000Z', reason: 'manual', title: 'Jogo', entries: [{ anchor: 'game', key: 'k', isDirectory: true, stored: 'data/0' }], files: 1, sizeBytes: 10, fingerprint: 'x', ...over });
+
+  it('versão com manifesto incompleto (sem data, entrada sem pasta) fica de fora em vez de quebrar a lista', async () => {
+    await makeTree(tmp(), {
+      'Jogo/20261001-120000-manual/manifest.json': manifest({}),
+      'Jogo/20261002-120000-manual/manifest.json': manifest({ createdAt: undefined }),
+      'Jogo/20261003-120000-manual/manifest.json': manifest({ entries: [{ anchor: 'game' }] }),
+    });
+    const vault = new SaveVault(() => tmp());
+    const gameDir = path.join(tmp(), 'Jogo');
+    expect((await vault.list(gameDir)).map((s) => s.id)).toEqual(['20261001-120000-manual']);
+    await expect(vault.entriesOf(gameDir, '20261003-120000-manual')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(await vault.entriesOf(gameDir, '20261001-120000-manual')).toEqual([
+      { anchor: 'game', key: 'k', isDirectory: true, stored: 'data/0', storedPath: path.join(gameDir, '20261001-120000-manual', 'data/0') },
+    ]);
+  });
+});
+
 describe('SaveVault.findGameDir', () => {
   it('ignora identity.json válido mas incompleto (sem título) em vez de quebrar', async () => {
     await makeTree(tmp(), {

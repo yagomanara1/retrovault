@@ -25,20 +25,26 @@ export interface SaveEntry {
   source: string;
 }
 
-interface ManifestEntry extends Omit<SaveEntry, 'source'> {
-  stored: string;
-}
+const ManifestEntrySchema = z.object({
+  anchor: z.enum(['game', 'retroarch', 'abs']),
+  key: z.string(),
+  isDirectory: z.boolean(),
+  /** Pasta da cópia dentro da versão (data/0, data/1…). */
+  stored: z.string(),
+});
+type ManifestEntry = z.infer<typeof ManifestEntrySchema>;
 
-interface Manifest {
-  version: 1;
-  createdAt: string;
-  reason: SaveSnapshotReason;
-  title: string;
-  entries: ManifestEntry[];
-  files: number;
-  sizeBytes: number;
-  fingerprint: string;
-}
+const ManifestSchema = z.object({
+  version: z.literal(1),
+  createdAt: z.string(),
+  reason: z.enum(['session', 'auto', 'manual', 'initial', 'pre-restore']) satisfies z.ZodType<SaveSnapshotReason>,
+  title: z.string(),
+  entries: z.array(ManifestEntrySchema),
+  files: z.number(),
+  sizeBytes: z.number(),
+  fingerprint: z.string(),
+});
+type Manifest = z.infer<typeof ManifestSchema>;
 
 const GameIdentitySchema = z.object({
   title: z.string(),
@@ -329,10 +335,11 @@ export class SaveVault {
     return dir;
   }
 
+  /** Manifesto de uma versão; ausente, corrompido ou incompleto = a versão não existe (null). */
   private async readManifest(dir: string): Promise<Manifest | null> {
     try {
-      const m = JSON.parse(await fs.readFile(path.join(dir, 'manifest.json'), 'utf8')) as Manifest;
-      return m.version === 1 && Array.isArray(m.entries) ? m : null;
+      const parsed = ManifestSchema.safeParse(JSON.parse(await fs.readFile(path.join(dir, 'manifest.json'), 'utf8')));
+      return parsed.success ? parsed.data : null;
     } catch {
       return null;
     }

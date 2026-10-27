@@ -8,6 +8,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import Database from 'better-sqlite3';
 import type { ScanCandidate } from '@shared/types';
+import { z } from 'zod';
 import { pathExists } from './fsUtils';
 import { isHelperExecutable, rankExecutables, type ExeInfo } from './libraryScanner';
 import { pickSteamRoot, steamApps } from './steam/steamLibrary';
@@ -114,23 +115,33 @@ export async function steamGames(deps: StoreLibraryDeps): Promise<StoreGame[]> {
 
 // ---------- Epic Games ----------
 
-interface EpicManifest {
-  DisplayName?: string;
-  InstallLocation?: string;
-  LaunchExecutable?: string;
-  AppCategories?: string[];
-  bIsIncompleteInstall?: boolean;
+/**
+ * JSON de outro programa (launcher de loja): fora do formato esperado vira null, para um arquivo
+ * estranho tirar da lista só aquele jogo, não a importação inteira. O BOM do Windows é ignorado.
+ */
+async function readForeignJson<T>(file: string, schema: z.ZodType<T>): Promise<T | null> {
+  try {
+    const parsed = schema.safeParse(JSON.parse((await fs.readFile(file, 'utf8')).replace(/^\uFEFF/, '')));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
 }
+
+const EpicManifestSchema = z.object({
+  DisplayName: z.string().optional(),
+  InstallLocation: z.string().optional(),
+  LaunchExecutable: z.string().optional(),
+  AppCategories: z.array(z.string()).optional(),
+  bIsIncompleteInstall: z.boolean().optional(),
+});
 
 export async function epicGames(programData: string): Promise<StoreGame[]> {
   const dir = path.join(programData, 'Epic', 'EpicGamesLauncher', 'Data', 'Manifests');
   const games: StoreGame[] = [];
   for (const name of await fs.readdir(dir).catch(() => [] as string[])) {
     if (!name.toLowerCase().endsWith('.item')) continue;
-    const m = await fs
-      .readFile(path.join(dir, name), 'utf8')
-      .then((t) => JSON.parse(t.replace(/^\uFEFF/, '')) as EpicManifest)
-      .catch(() => null);
+    const m = await readForeignJson(path.join(dir, name), EpicManifestSchema);
     // Só jogos completos (não plugins, editores nem instalações pela metade).
     if (!m?.DisplayName || !m.InstallLocation || m.bIsIncompleteInstall) continue;
     if (m.AppCategories && !m.AppCategories.includes('games')) continue;
@@ -181,6 +192,8 @@ function readSqlite<T>(file: string, query: string): T[] {
   }
 }
 
+const FuelSchema = z.object({ Main: z.object({ Command: z.string().optional() }).optional() });
+
 export async function amazonGames(localAppData: string): Promise<StoreGame[]> {
   const file = path.join(localAppData, 'Amazon Games', 'Data', 'Games', 'Sql', 'GameInstallInfo.sqlite');
   if (!(await pathExists(file))) return [];
@@ -189,10 +202,7 @@ export async function amazonGames(localAppData: string): Promise<StoreGame[]> {
   for (const r of rows) {
     if (!r.ProductTitle || !r.InstallDirectory) continue;
     // fuel.json (na pasta do jogo) diz o executável principal.
-    const fuel = await fs
-      .readFile(path.join(r.InstallDirectory, 'fuel.json'), 'utf8')
-      .then((t) => JSON.parse(t.replace(/^\uFEFF/, '')) as { Main?: { Command?: string } })
-      .catch(() => null);
+    const fuel = await readForeignJson(path.join(r.InstallDirectory, 'fuel.json'), FuelSchema);
     const command = fuel?.Main?.Command;
     games.push({ store: 'Amazon Games', title: r.ProductTitle, dir: r.InstallDirectory, exe: command ? path.join(r.InstallDirectory, command) : undefined });
   }
