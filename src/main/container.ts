@@ -54,6 +54,8 @@ import { MaintenanceService } from './services/maintenanceService';
 import { PortLifecycleService } from './services/store/portLifecycleService';
 import { fetchImage, isSteamRunning, SteamShortcutService } from './services/steam/steamShortcutService';
 import { createIdBatcher } from './services/idBatcher';
+import { SessionLifecycle } from './services/sessionLifecycle';
+import { UnlockNotifier } from './services/unlockNotifier';
 import type { Game } from '@shared/types';
 
 export interface ContainerDeps {
@@ -91,8 +93,6 @@ export interface ContainerDeps {
   appUpdate: Pick<AppUpdateDeps, 'currentVersion' | 'releasesUrl' | 'disabledReason' | 'createUpdater'>;
 }
 
-const GRADE_LABEL = { P: 'Platina', G: 'Ouro', S: 'Prata', B: 'Bronze' } as const;
-
 /** Composition root: único lugar que conhece as implementações concretas. */
 export function createContainer(deps: ContainerDeps) {
   const { db, dbFile, backupDir, userDataDir, appDataDir, emit, notify } = deps;
@@ -111,12 +111,14 @@ export function createContainer(deps: ContainerDeps) {
   const dumpLocator = new TrpLocator([appDataDir]);
   const games = new GameService(gameRepo, ra, retroarch, artwork, new DumpArtworkService(dumpLocator));
 
+  const unlocks = new UnlockNotifier({
+    enabled: () => settings.get().notifyAchievements,
+    notify,
+    resolveArtwork: (url) => artwork.resolve(url),
+  });
   const watcher = new AchievementWatcher(ra, (achievements) => {
     emit('achievements:unlocked', { achievements });
-    if (!settings.get().notifyAchievements) return;
-    for (const a of achievements) {
-      notify(`🏆 Conquista desbloqueada: ${a.title}`, `${a.gameTitle} · ${a.points} pontos`);
-    }
+    unlocks.achievements(achievements);
   });
 
   const emulators = new EmulatorService({
@@ -127,25 +129,25 @@ export function createContainer(deps: ContainerDeps) {
   });
 
   const snapshots = new ProcessSnapshotter();
-  const launcher = new LauncherService(gameRepo, games, retroarch, emulators, settings, snapshots, {
-    onStarted(game) {
-      emit('session:started', { gameId: game.id });
-      if (game.kind === 'retroarch' || game.raGameId) void watcher.start(game.id);
-      // RPCS3/Vita3K: troféus do emulador avisados na hora (a lista pode surgir na primeira execução).
-      trophies.watchEmulatorProgress(game.id);
-      discord.gameStarted(game);
+  // trophies e discord são criados mais abaixo: lidos só quando um jogo abre ou fecha.
+  const sessions = new SessionLifecycle({
+    emit,
+    achievements: watcher,
+    trophies: {
+      watchEmulatorProgress: (gameId) => trophies.watchEmulatorProgress(gameId),
+      stopWatchingEmulatorProgress: (gameId) => trophies.stopWatchingEmulatorProgress(gameId),
+      queueAutoImport: (gameId) => trophies.queueAutoImport(gameId),
     },
-    onEnded(game, durationSeconds) {
-      discord.gameEnded(game);
-      void trophies.stopWatchingEmulatorProgress(game.id).then(() => trophies.queueAutoImport(game.id));
-      watcher.stop(game.id);
-      ra.invalidateUserData(game.raGameId ? [game.raGameId] : []);
-      emit('session:ended', { gameId: game.id, durationSeconds });
-      // Jogo fechado: guarda o save no cofre (só grava se mudou) e o progresso ao lado dele.
-      if (settings.get().autoBackupSaves) backupSave(game.id, 'session');
-      exportProgressNextToVault();
+    discord: {
+      gameStarted: (game) => discord.gameStarted(game),
+      gameEnded: (game) => discord.gameEnded(game),
     },
+    invalidateRaUserData: (raGameIds) => ra.invalidateUserData(raGameIds),
+    autoBackupSaves: () => settings.get().autoBackupSaves,
+    backupSave,
+    exportProgress: exportProgressNextToVault,
   });
+  const launcher = new LauncherService(gameRepo, games, retroarch, emulators, settings, snapshots, sessions);
 
   const saves = new SaveService({
     games,
@@ -160,7 +162,7 @@ export function createContainer(deps: ContainerDeps) {
     ),
     vault: new SaveVault(() => settings.get().savesRoot),
     retroarchDir: async () => (await retroarch.saveDirs())?.exeDir ?? null,
-    isRunning: (gameId) => launcher.runningGameIds().includes(gameId),
+    isRunning: (gameId) => launcher.isRunning(gameId),
   });
   const cloud = new CloudService({
     home: deps.homeDir,
@@ -198,14 +200,7 @@ export function createContainer(deps: ContainerDeps) {
     },
     onUnlocked(game, unlocked) {
       emit('trophies:unlocked', { gameId: game.id, gameTitle: game.title, trophies: unlocked });
-      if (!settings.get().notifyAchievements) return;
-      for (const t of unlocked) {
-        notify(
-          `🏆 Troféu de ${GRADE_LABEL[t.grade]}: ${t.name}`,
-          `${game.title}${t.detail ? ` · ${t.detail}` : ''}`,
-          t.iconUrl ? artwork.resolve(t.iconUrl) : null,
-        );
-      }
+      unlocks.trophies(game, unlocked);
     },
   }, appDataDir);
   const trophyWatcher = new TrophyLogWatcher(trophies);
@@ -285,7 +280,7 @@ export function createContainer(deps: ContainerDeps) {
     gb: new GameBananaClient(cache),
     importImage: (url) => storeArt.importRemote(url, { photo: true, remember: false, host: GAMEBANANA_IMAGE_HOST }),
     workDir: path.join(deps.localAppDataDir, 'RetroVault', 'Ports', '.mods'),
-    isRunning: (gameId) => launcher.runningGameIds().includes(gameId),
+    isRunning: (gameId) => launcher.isRunning(gameId),
     onProgress: (progress) => emit('mods:progress', progress),
   });
   const gameArt = new GameArtService({
@@ -317,7 +312,7 @@ export function createContainer(deps: ContainerDeps) {
     afterInstall: (portId): Promise<void> => ports.afterInstall(portId),
     root: path.join(deps.localAppDataDir, 'RetroVault', 'Ports'),
     games,
-    isRunning: (gameId) => launcher.runningGameIds().includes(gameId),
+    isRunning: (gameId) => launcher.isRunning(gameId),
     async backupSave(gameId) {
       // "auto": só cria uma versão no cofre se o save mudou desde a última.
       const snapshot = await saves.backup(gameId, 'auto');
@@ -346,7 +341,7 @@ export function createContainer(deps: ContainerDeps) {
     repairLibrary: () => relocation.repairLibrary(),
     backupSaves: (reason) => saves.backupLibrary(reason),
     autoBackupSaves: () => settings.get().autoBackupSaves,
-    isRunning: (gameId) => launcher.runningGameIds().includes(gameId),
+    isRunning: (gameId) => launcher.isRunning(gameId),
     backupSave,
     onGameChanged: notifyGameChanged,
   });

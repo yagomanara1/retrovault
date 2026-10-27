@@ -103,6 +103,10 @@ export class LauncherService {
     return [...this.sessions.keys()];
   }
 
+  isRunning(gameId: number): boolean {
+    return this.sessions.has(gameId);
+  }
+
   async launch(gameId: number): Promise<void> {
     const running = this.sessions.get(gameId);
     if (running) {
