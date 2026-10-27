@@ -1,16 +1,13 @@
 import type { GitHubStatus, StoreRelease } from '@shared/store';
 import { AppError } from '../../errors';
 import type { ApiCache } from '../apiCache';
+import { defaultFetch, type FetchFn, httpGet } from '../http';
 import { pickAsset } from './catalogSchema';
 
 const API_BASE = 'https://api.github.com';
-const USER_AGENT = 'RetroVault/0.1 (+desktop launcher)';
-const REQUEST_TIMEOUT_MS = 20_000;
 const RELEASES_PER_PAGE = 10;
 const RELEASES_TTL_MS = 60 * 60_000;
 const MAX_NOTES = 6000;
-
-export type FetchFn = (url: string, init: { headers: Record<string, string>; signal: AbortSignal }) => Promise<Response>;
 
 /** Campos usados da API de releases do GitHub (o resto é ignorado). */
 interface RawRelease {
@@ -86,7 +83,7 @@ export class GitHubClient {
     private readonly cache: ApiCache,
     /** Token da conta vinculada (decifrado sob demanda no main); null = sem conta. */
     private readonly token: () => string | null,
-    private readonly fetchFn: FetchFn = (url, init) => fetch(url, init),
+    private readonly fetchFn: FetchFn = defaultFetch,
   ) {}
 
   async listReleases(repo: string, windowsPattern: string, force = false): Promise<StoreRelease[]> {
@@ -157,20 +154,15 @@ export class GitHubClient {
   }
 
   private async send(pathAndQuery: string, token: string | null, etag?: string | null): Promise<Response> {
-    try {
-      return await this.fetchFn(`${API_BASE}${pathAndQuery}`, {
-        headers: {
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-          'User-Agent': USER_AGENT,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(etag ? { 'If-None-Match': etag } : {}),
-        },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-    } catch (err) {
-      throw new AppError('STORE_NETWORK', 'Sem conexão com o GitHub. Verifique a internet e tente de novo.', { cause: err });
-    }
+    return httpGet(this.fetchFn, `${API_BASE}${pathAndQuery}`, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(etag ? { 'If-None-Match': etag } : {}),
+      },
+      offline: { code: 'STORE_NETWORK', message: 'Sem conexão com o GitHub. Verifique a internet e tente de novo.' },
+    });
   }
 
   private async parse<T>(response: Response, etag?: string | null): Promise<RequestResult<T>> {

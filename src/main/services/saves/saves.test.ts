@@ -9,7 +9,7 @@ import { makeTree, useTempDir } from '../../testing/tempDir';
 import type { GameService } from '../gameService';
 import { SaveLocator } from './saveLocator';
 import { SaveService } from './saveService';
-import { moveVaultRoot, SaveVault } from './saveVault';
+import { mergeVaultInto, moveVaultRoot, SaveVault } from './saveVault';
 
 const tmp = useTempDir('rv-saves-');
 
@@ -181,5 +181,54 @@ describe('moveVaultRoot', () => {
     await moveVaultRoot(from, path.join(tmp(), 'OneDrive/Saves'));
     expect(await fs.readFile(path.join(tmp(), 'OneDrive/Saves/Jogo/identity.json'), 'utf8')).toBe('{}');
     await expect(fs.stat(from)).rejects.toThrow();
+  });
+});
+
+describe('mergeVaultInto', () => {
+  const identity = (title: string, file: string) => JSON.stringify({ title, file });
+
+  it('identity.json corrompido (cópia de conflito da nuvem) não interrompe a junção nem perde o save', async () => {
+    await makeTree(tmp(), {
+      'A/Quebrado/identity.json': '{"title": "Quebr',
+      'A/Quebrado/20260101-120000-auto/save.dat': 'progresso',
+      'A/Bom/identity.json': identity('Bom', 'bom.exe'),
+      'A/Bom/20260101-120000-auto/save.dat': 'ok',
+    });
+    const result = await mergeVaultInto(path.join(tmp(), 'A'), path.join(tmp(), 'B'), true);
+    expect(result.games).toBe(2);
+    expect(await fs.readFile(path.join(tmp(), 'B/Quebrado/20260101-120000-auto/save.dat'), 'utf8')).toBe('progresso');
+    expect(await fs.readFile(path.join(tmp(), 'B/Bom/20260101-120000-auto/save.dat'), 'utf8')).toBe('ok');
+  });
+});
+
+describe('SaveVault: manifesto de uma versão', () => {
+  const tmp = useTempDir();
+  const manifest = (over: object) =>
+    JSON.stringify({ version: 1, createdAt: '2026-10-01T12:00:00.000Z', reason: 'manual', title: 'Jogo', entries: [{ anchor: 'game', key: 'k', isDirectory: true, stored: 'data/0' }], files: 1, sizeBytes: 10, fingerprint: 'x', ...over });
+
+  it('versão com manifesto incompleto (sem data, entrada sem pasta) fica de fora em vez de quebrar a lista', async () => {
+    await makeTree(tmp(), {
+      'Jogo/20261001-120000-manual/manifest.json': manifest({}),
+      'Jogo/20261002-120000-manual/manifest.json': manifest({ createdAt: undefined }),
+      'Jogo/20261003-120000-manual/manifest.json': manifest({ entries: [{ anchor: 'game' }] }),
+    });
+    const vault = new SaveVault(() => tmp());
+    const gameDir = path.join(tmp(), 'Jogo');
+    expect((await vault.list(gameDir)).map((s) => s.id)).toEqual(['20261001-120000-manual']);
+    await expect(vault.entriesOf(gameDir, '20261003-120000-manual')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(await vault.entriesOf(gameDir, '20261001-120000-manual')).toEqual([
+      { anchor: 'game', key: 'k', isDirectory: true, stored: 'data/0', storedPath: path.join(gameDir, '20261001-120000-manual', 'data/0') },
+    ]);
+  });
+});
+
+describe('SaveVault.findGameDir', () => {
+  it('ignora identity.json válido mas incompleto (sem título) em vez de quebrar', async () => {
+    await makeTree(tmp(), {
+      'Cofre/AAA sem titulo/identity.json': JSON.stringify({ file: 'jogo.exe' }), // lida antes de "Jogo"
+      'Cofre/Jogo/identity.json': JSON.stringify({ title: 'Jogo', file: 'jogo.exe' }),
+    });
+    const vault = new SaveVault(() => path.join(tmp(), 'Cofre'));
+    expect(await vault.findGameDir({ title: 'Jogo', file: 'jogo.exe' })).toBe(path.join(tmp(), 'Cofre/Jogo'));
   });
 });

@@ -7,6 +7,7 @@ import { SelectField, Switch } from '../ui/Form';
 import { LoadingBlock, Skeleton } from '../ui/States';
 import { useToast } from '../ui/Toast';
 import { CheckIcon, FolderIcon, LinkIcon, RefreshIcon } from '../ui/icons';
+import { SettingsPanel } from './SettingsPanel';
 
 const AUTO = 'auto';
 
@@ -42,15 +43,15 @@ export function EmulatorsSection() {
   }
 
   return (
-    <section className="panel" aria-labelledby="emulators-heading">
-      <header className="panel__header">
-        <h2 id="emulators-heading" className="panel__title">
-          Emuladores
-        </h2>
+    <SettingsPanel
+      id="emulators"
+      title="Emuladores"
+      actions={
         <Button variant="ghost" size="sm" icon={<RefreshIcon size={14} />} loading={actions.refresh.isPending} onClick={() => actions.refresh.mutate()}>
           Procurar de novo
         </Button>
-      </header>
+      }
+    >
       <p className="muted">
         Por padrão, as ROMs abrem no RetroArch. Aqui você escolhe um emulador próprio para cada console, como o PCSX2 para PS2 ou o Dolphin
         para GameCube e Wii. No automático, o RetroVault só troca de programa quando o RetroArch não tem core para o console e o emulador
@@ -138,6 +139,6 @@ export function EmulatorsSection() {
           </li>
         ))}
       </ul>
-    </section>
+    </SettingsPanel>
   );
 }

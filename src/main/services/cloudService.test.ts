@@ -35,6 +35,10 @@ describe('parsers', () => {
     expect(parseDropboxInfo('{"personal":{"path":"C:\\\\Users\\\\x\\\\Dropbox"}}')).toBe('C:\\Users\\x\\Dropbox');
     expect(parseDropboxInfo('{"business":{"path":"D:\\\\Dropbox (Empresa)"}}')).toBe('D:\\Dropbox (Empresa)');
     expect(parseDropboxInfo('lixo')).toBeNull();
+    // JSON válido no formato errado: não vira um "caminho" que não é texto.
+    expect(parseDropboxInfo('{"personal":{"path":5}}')).toBeNull();
+    expect(parseDropboxInfo('null')).toBeNull();
+    expect(parseDropboxInfo('{"personal":{"path":5},"business":{"path":"D:\\\\Dropbox"}}')).toBe('D:\\Dropbox');
   });
 
   it('providerForPath: o cofre está dentro de qual pasta sincronizada', () => {

@@ -5,12 +5,12 @@ import type { TrophyRecord, TrophyRepository, WatchedSet } from '../../db/reposi
 import { AppError } from '../../errors';
 import type { ArtworkService } from '../artworkService';
 import type { GameService } from '../gameService';
+import { hasImageSignature } from '../imageSignature';
 import type { SettingsService } from '../settingsService';
+import { EmulatorProgressWatcher } from './emulatorProgressWatcher';
 import { locateEmulatorTrophies, readProgressFile, readTrophyFolder, type EmulatorTrophyLocation } from './emulatorTrophies';
 import { findNpCommId, readTrophyPackage } from './trp';
 import type { TrpLocator } from './trpLocator';
-
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 
 /** Linha que o runtime do port escreve: `Runtime: trophy 12 unlocked`. */
 export const DEFAULT_LOG_PATTERN = String.raw`trophy\s+(\d+)\s+unlocked`;
@@ -28,14 +28,25 @@ export interface TrophyHooks {
   onLogAttached(game: Game, logPath: string): void;
 }
 
-/** Intervalo da conferência do TROPUSR.DAT enquanto um jogo de emulador roda. */
-const PROGRESS_POLL_MS = 3000;
+/** Troféu como vem do pacote .trp ou da pasta do emulador. */
+type ParsedTrophy = Omit<TrophyRecord, 'trophyId' | 'iconUrl'> & { id: number };
+
+/** Os ícones de cada troféu (TROP000.PNG…) ficam ao lado da lista, no pacote e na pasta do emulador. */
+async function toTrophyRecords(list: readonly ParsedTrophy[], icon: (name: string) => Promise<string | null>): Promise<TrophyRecord[]> {
+  const records: TrophyRecord[] = [];
+  for (const t of list) {
+    records.push({ trophyId: t.id, name: t.name, detail: t.detail, grade: t.grade, hidden: t.hidden, iconUrl: await icon(`TROP${String(t.id).padStart(3, '0')}.PNG`) });
+  }
+  return records;
+}
 
 export class TrophyService {
   /** Serializa as importações automáticas: nunca duas ao mesmo tempo. */
   private autoQueue: Promise<void> = Promise.resolve();
-  /** Jogos de emulador abertos: TROPUSR.DAT conferido periodicamente (pela data de modificação). */
-  private readonly progressWatches = new Map<number, { timer: NodeJS.Timeout; mtimeMs: number }>();
+  private readonly progressWatcher = new EmulatorProgressWatcher({
+    progressPath: (gameId) => this.repo.emulatorSet(gameId)?.progressPath ?? null,
+    sync: (gameId) => this.syncEmulatorProgress(gameId, true),
+  });
 
   constructor(
     private readonly repo: TrophyRepository,
@@ -72,18 +83,7 @@ export class TrophyService {
       const png = pkg.images.get(name);
       return png ? this.artwork.saveImage(png, 'png') : null;
     };
-    const trophies: TrophyRecord[] = [];
-    for (const t of pkg.trophies) {
-      trophies.push({
-        trophyId: t.id,
-        name: t.name,
-        detail: t.detail,
-        grade: t.grade,
-        hidden: t.hidden,
-        iconUrl: await icon(`TROP${String(t.id).padStart(3, '0')}.PNG`),
-      });
-    }
-
+    const trophies = await toTrophyRecords(pkg.trophies, icon);
     const existing = this.repo.getSet(gameId);
     this.repo.replaceSet(
       {
@@ -96,7 +96,7 @@ export class TrophyService {
       },
       trophies,
     );
-    return this.repo.getSet(gameId)!;
+    return this.reload(gameId);
   }
 
   /** Procura os troféus do jogo: no emulador (RPCS3/Vita3K) ou o trophy00.trp do dump, e importa. */
@@ -127,12 +127,9 @@ export class TrophyService {
     if (folder.trophies.length === 0) throw new AppError('VALIDATION', 'A lista de troféus do emulador está vazia.');
     const icon = async (name: string) => {
       const png = await fs.readFile(path.join(location.folder, name)).catch(() => null);
-      return png && png.subarray(0, 4).equals(PNG_SIGNATURE) ? this.artwork.saveImage(png, 'png') : null;
+      return png && hasImageSignature(png, 'png') ? this.artwork.saveImage(png, 'png') : null;
     };
-    const trophies: TrophyRecord[] = [];
-    for (const t of folder.trophies) {
-      trophies.push({ trophyId: t.id, name: t.name, detail: t.detail, grade: t.grade, hidden: t.hidden, iconUrl: await icon(`TROP${String(t.id).padStart(3, '0')}.PNG`) });
-    }
+    const trophies = await toTrophyRecords(folder.trophies, icon);
     this.repo.replaceSet(
       {
         gameId,
@@ -146,7 +143,7 @@ export class TrophyService {
       trophies,
     );
     await this.syncEmulatorProgress(gameId, false);
-    return this.repo.getSet(gameId)!;
+    return this.reload(gameId);
   }
 
   /**
@@ -155,7 +152,7 @@ export class TrophyService {
    * o emulador só acrescenta.
    */
   async syncEmulatorProgress(gameId: number, notify: boolean): Promise<number[]> {
-    const set = this.repo.emulatorSets().find((s) => s.gameId === gameId);
+    const set = this.repo.emulatorSet(gameId);
     if (!set) return [];
     let progress;
     try {
@@ -173,11 +170,7 @@ export class TrophyService {
       if (!state.unlocked || !locked.has(id)) continue;
       changed.push(...this.repo.unlock(gameId, [id], 'auto', (state.at ?? new Date()).toISOString()));
     }
-    if (changed.length && notify) {
-      const game = this.games.list().find((g) => g.id === gameId);
-      const after = this.repo.getSet(gameId);
-      if (game && after) this.hooks.onUnlocked(game, after.trophies.filter((t) => changed.includes(t.id)));
-    }
+    if (notify) this.notifyUnlocked(gameId, changed);
     return changed;
   }
 
@@ -188,28 +181,12 @@ export class TrophyService {
 
   /** Jogo de emulador aberto: confere o TROPUSR.DAT a cada poucos segundos e avisa na hora. */
   watchEmulatorProgress(gameId: number): void {
-    if (this.progressWatches.has(gameId) || !this.repo.emulatorSets().some((s) => s.gameId === gameId)) return;
-    const watch = { mtimeMs: 0, timer: setInterval(() => void this.pollProgress(gameId), PROGRESS_POLL_MS) };
-    watch.timer.unref?.();
-    this.progressWatches.set(gameId, watch);
+    this.progressWatcher.watch(gameId);
   }
 
   /** Jogo fechado: para de conferir e faz a última leitura (o emulador grava ao sair). */
-  async stopWatchingEmulatorProgress(gameId: number): Promise<void> {
-    const watch = this.progressWatches.get(gameId);
-    if (watch) clearInterval(watch.timer);
-    this.progressWatches.delete(gameId);
-    await this.syncEmulatorProgress(gameId, true).catch(() => []);
-  }
-
-  private async pollProgress(gameId: number): Promise<void> {
-    const watch = this.progressWatches.get(gameId);
-    const set = this.repo.emulatorSets().find((s) => s.gameId === gameId);
-    if (!watch || !set) return;
-    const mtimeMs = (await fs.stat(set.progressPath).catch(() => null))?.mtimeMs ?? 0;
-    if (mtimeMs === watch.mtimeMs) return;
-    watch.mtimeMs = mtimeMs;
-    await this.syncEmulatorProgress(gameId, true).catch(() => []);
+  stopWatchingEmulatorProgress(gameId: number): Promise<void> {
+    return this.progressWatcher.stop(gameId);
   }
 
   /** Importação automática em segundo plano para um jogo recém-adicionado ou alterado. */
@@ -227,7 +204,7 @@ export class TrophyService {
   async createManual(gameId: number): Promise<TrophySet> {
     const game = this.games.get(gameId);
     this.repo.createManualSet(gameId, await this.detectLogPath(game));
-    return this.repo.getSet(gameId)!;
+    return this.reload(gameId);
   }
 
   deleteSet(gameId: number): void {
@@ -244,18 +221,17 @@ export class TrophyService {
       grade: input.grade,
       hidden: input.hidden,
     });
-    return this.repo.getSet(input.gameId)!;
+    return this.reload(input.gameId);
   }
 
   delete(gameId: number, trophyId: number): TrophySet {
     this.requireSet(gameId);
     this.repo.deleteTrophy(gameId, trophyId);
-    return this.repo.getSet(gameId)!;
+    return this.reload(gameId);
   }
 
   setUnlocked(gameId: number, trophyId: number, unlocked: boolean): TrophySet {
-    this.requireSet(gameId);
-    const source = this.repo.getSet(gameId)!.source;
+    const { source } = this.requireSet(gameId);
     if (source === 'rpcs3' || source === 'vita3k') {
       throw new AppError('VALIDATION', `Os troféus deste jogo vêm do ${source === 'rpcs3' ? 'RPCS3' : 'Vita3K'}: eles se desbloqueiam jogando.`);
     }
@@ -264,7 +240,7 @@ export class TrophyService {
     } else {
       this.repo.lock(gameId, trophyId);
     }
-    return this.repo.getSet(gameId)!;
+    return this.reload(gameId);
   }
 
   async configureLog(gameId: number, logPath: string | null | 'auto'): Promise<TrophySet> {
@@ -275,7 +251,7 @@ export class TrophyService {
       throw new AppError('NOT_FOUND', 'Nenhum log conhecido encontrado. Escolha o arquivo manualmente.');
     }
     this.repo.setLogPath(gameId, resolved);
-    return this.repo.getSet(gameId)!;
+    return this.reload(gameId);
   }
 
   // ---------- Integração com o watcher ----------
@@ -291,9 +267,8 @@ export class TrophyService {
   async attachMissingLogs(): Promise<void> {
     const pending = this.repo.setsMissingLog();
     if (pending.length === 0) return;
-    const games = new Map(this.games.list().map((g) => [g.id, g]));
     for (const gameId of pending) {
-      const game = games.get(gameId);
+      const game = this.games.find(gameId);
       const logPath = game ? await this.detectLogPath(game) : null;
       if (!game || !logPath) continue;
       this.repo.attachLog(gameId, logPath);
@@ -306,13 +281,7 @@ export class TrophyService {
   applyLogProgress(gameId: number, cursor: number, tailHash: string | null, trophyIds: readonly number[]): void {
     this.repo.saveCursor(gameId, cursor, tailHash);
     if (trophyIds.length === 0) return;
-    const changed = this.unlockWithPlatinum(gameId, trophyIds, 'auto');
-    if (changed.length === 0) return;
-    const set = this.repo.getSet(gameId);
-    const game = this.games.list().find((g) => g.id === gameId);
-    if (!set || !game) return;
-    const unlocked = set.trophies.filter((t) => changed.includes(t.id));
-    this.hooks.onUnlocked(game, unlocked);
+    this.notifyUnlocked(gameId, this.unlockWithPlatinum(gameId, trophyIds, 'auto'));
   }
 
   /** Jogo movido: o log vigiado que ficava na pasta antiga passa a apontar para a nova. */
@@ -340,7 +309,7 @@ export class TrophyService {
     const known = new Set(set.trophies.map((t) => t.id));
     const changed = this.repo.unlock(gameId, ids.filter((id) => known.has(id)), source);
 
-    const after = this.repo.getSet(gameId)!;
+    const after = this.reload(gameId);
     const platinum = after.trophies.find((t) => t.grade === 'P' && !t.unlockedAt);
     const others = after.trophies.filter((t) => t.grade !== 'P');
     if (platinum && others.length > 0 && others.every((t) => t.unlockedAt)) {
@@ -358,7 +327,7 @@ export class TrophyService {
   /** Não lança: falhas em segundo plano só vão para o log (o usuário ainda pode importar à mão). */
   private async tryAutoImport(gameId: number): Promise<void> {
     if (this.repo.getSet(gameId)) return;
-    const game = this.games.list().find((g) => g.id === gameId);
+    const game = this.games.find(gameId);
     if (!game) return;
     try {
       const stillPending = () => !this.repo.getSet(gameId) && this.repo.gamesPendingAutoImport().includes(gameId);
@@ -386,8 +355,23 @@ export class TrophyService {
     }
   }
 
-  private requireSet(gameId: number): void {
-    if (!this.repo.getSet(gameId)) throw new AppError('NOT_FOUND', 'Este jogo ainda não tem lista de troféus.');
+  /** Avisa os troféus recém-desbloqueados (jogo removido nesse meio-tempo: ninguém para avisar). */
+  private notifyUnlocked(gameId: number, changed: readonly number[]): void {
+    if (changed.length === 0) return;
+    const game = this.games.find(gameId);
+    const set = this.repo.getSet(gameId);
+    if (game && set) this.hooks.onUnlocked(game, set.trophies.filter((t) => changed.includes(t.id)));
+  }
+
+  private requireSet(gameId: number): TrophySet {
+    const set = this.repo.getSet(gameId);
+    if (!set) throw new AppError('NOT_FOUND', 'Este jogo ainda não tem lista de troféus.');
+    return set;
+  }
+
+  /** A lista depois de uma gravação (se sumiu nesse meio-tempo: NOT_FOUND, não null). */
+  private reload(gameId: number): TrophySet {
+    return this.requireSet(gameId);
   }
 
   /** Ports no padrão bloodborne_pc/gow3_pc gravam o log em <pasta do exe>/user/last_run.log. */

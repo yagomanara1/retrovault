@@ -6,8 +6,10 @@ import type {
   RecentAchievement,
   UserProfile,
 } from '@shared/types';
+import { wordKey } from '@shared/text';
 import { AppError } from '../../errors';
 import type { ApiCache } from '../apiCache';
+import { defaultFetch, type FetchFn, httpGet } from '../http';
 import type { RaCredentials } from '../settingsService';
 import {
   type GameListEntry,
@@ -28,9 +30,7 @@ import type {
 } from './rawTypes';
 
 const API_BASE = 'https://retroachievements.org/API/';
-const USER_AGENT = 'RetroVault/0.1 (+desktop launcher)';
 const MIN_INTERVAL_MS = 250;
-const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_RETRIES = 3;
 const COMPLETION_PAGE_SIZE = 500;
 const MAX_COMPLETION_PAGES = 20;
@@ -46,7 +46,13 @@ const TTL = {
   gameProgress: 5 * MIN,
 } as const;
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** O que o cliente usa do mundo lá fora; os testes trocam pelos de mentira. */
+export interface RaClientDeps {
+  fetchFn?: FetchFn;
+  sleep?: (ms: number) => Promise<void>;
+}
 
 function backoffMs(attempt: number, retryAfter: string | null): number {
   const seconds = retryAfter ? Number(retryAfter) : NaN;
@@ -54,14 +60,7 @@ function backoffMs(attempt: number, retryAfter: string | null): number {
   return 500 * 2 ** attempt + Math.random() * 250;
 }
 
-function normalizeTitle(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
+const normalizeTitle = wordKey;
 
 /**
  * Cliente da Web API do RetroAchievements.
@@ -72,11 +71,17 @@ function normalizeTitle(text: string): string {
 export class RetroAchievementsClient {
   private gate: Promise<void> = Promise.resolve();
   private lastRequestAt = 0;
+  private readonly fetchFn: FetchFn;
+  private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(
     private readonly credentials: () => RaCredentials | null,
     private readonly cache: ApiCache,
-  ) {}
+    deps: RaClientDeps = {},
+  ) {
+    this.fetchFn = deps.fetchFn ?? defaultFetch;
+    this.sleep = deps.sleep ?? realSleep;
+  }
 
   hasCredentials(): boolean {
     return this.credentials() !== null;
@@ -239,7 +244,7 @@ export class RetroAchievementsClient {
   private waitTurn(): Promise<void> {
     const turn = this.gate.then(async () => {
       const wait = this.lastRequestAt + MIN_INTERVAL_MS - Date.now();
-      if (wait > 0) await sleep(wait);
+      if (wait > 0) await this.sleep(wait);
       this.lastRequestAt = Date.now();
     });
     this.gate = turn;
@@ -256,24 +261,20 @@ export class RetroAchievementsClient {
       await this.waitTurn();
       let response: Response;
       try {
-        response = await fetch(url, {
-          headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        response = await httpGet(this.fetchFn, url.toString(), {
+          headers: { Accept: 'application/json' },
+          offline: { code: 'RA_NETWORK', message: 'Não foi possível conectar ao RetroAchievements. Verifique sua conexão.' },
         });
       } catch (err) {
         if (attempt < MAX_RETRIES) {
-          await sleep(backoffMs(attempt, null));
+          await this.sleep(backoffMs(attempt, null));
           continue;
         }
-        throw new AppError(
-          'RA_NETWORK',
-          'Não foi possível conectar ao RetroAchievements. Verifique sua conexão.',
-          { cause: err },
-        );
+        throw err;
       }
 
       if ((response.status === 429 || response.status >= 500) && attempt < MAX_RETRIES) {
-        await sleep(backoffMs(attempt, response.headers.get('retry-after')));
+        await this.sleep(backoffMs(attempt, response.headers.get('retry-after')));
         continue;
       }
       if (response.status === 401 || response.status === 403) {

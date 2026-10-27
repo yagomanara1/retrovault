@@ -1,10 +1,9 @@
+import { wordKey } from '@shared/text';
 import { AppError } from '../../errors';
+import { defaultFetch, type FetchFn, httpGet } from '../http';
 import { isAllowedArtUrl } from './catalogSchema';
-import type { FetchFn } from './githubClient';
 
 const SGDB_API = 'https://www.steamgriddb.com/api/v2';
-const USER_AGENT = 'RetroVault/0.1 (+desktop launcher)';
-const REQUEST_TIMEOUT_MS = 20_000;
 /** Sem conteúdo adulto nem "humor" (paródias): é a capa do jogo na biblioteca. */
 const SAFE = 'nsfw=false&humor=false';
 
@@ -31,13 +30,7 @@ const PATHS: Record<SgdbKind, (gameId: number) => string> = {
   icon: (id) => `/icons/game/${id}?${SAFE}`,
 };
 
-export const normalizeTitle = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
+export const normalizeTitle = wordKey;
 
 /**
  * Cliente da API v2 do SteamGridDB (chave do usuário, decifrada no main). Usado pela Loja e pela
@@ -47,7 +40,7 @@ export class SteamGridDbClient {
   private readonly fetchFn: FetchFn;
 
   constructor(fetchFn?: FetchFn) {
-    this.fetchFn = fetchFn ?? ((url, init) => fetch(url, init));
+    this.fetchFn = fetchFn ?? defaultFetch;
   }
 
   /** Jogos com nome parecido, na ordem do SteamGridDB (o mais provável primeiro). */
@@ -79,15 +72,10 @@ export class SteamGridDbClient {
   }
 
   private async get<T>(path: string, key: string): Promise<T> {
-    let response: Response;
-    try {
-      response = await this.fetchFn(`${SGDB_API}${path}`, {
-        headers: { Authorization: `Bearer ${key}`, Accept: 'application/json', 'User-Agent': USER_AGENT },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-    } catch (err) {
-      throw new AppError('STORE_NETWORK', 'Sem conexão com o SteamGridDB.', { cause: err });
-    }
+    const response = await httpGet(this.fetchFn, `${SGDB_API}${path}`, {
+      headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
+      offline: { code: 'STORE_NETWORK', message: 'Sem conexão com o SteamGridDB.' },
+    });
     if (response.status === 401 || response.status === 403) {
       throw new AppError('SGDB_AUTH', 'O SteamGridDB recusou esta chave. Confira se ela foi copiada inteira.');
     }

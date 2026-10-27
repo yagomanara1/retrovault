@@ -1,5 +1,19 @@
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseArgs, titleFromPath } from './fsUtils';
+import { makeTree, useTempDir } from '../testing/tempDir';
+import { parseArgs, pathExists, titleFromPath } from './fsUtils';
+
+describe('pathExists', () => {
+  const tmp = useTempDir();
+
+  it('arquivo e pasta existem; caminho que não existe, não', async () => {
+    await makeTree(tmp(), { 'pasta/arquivo.txt': 'oi' });
+    expect(await pathExists(path.join(tmp(), 'pasta'))).toBe(true);
+    expect(await pathExists(path.join(tmp(), 'pasta', 'arquivo.txt'))).toBe(true);
+    expect(await pathExists(path.join(tmp(), 'nada'))).toBe(false);
+    expect(await pathExists(path.join(tmp(), 'pasta', 'arquivo.txt', 'dentro'))).toBe(false);
+  });
+});
 
 describe('parseArgs', () => {
   it('respeita aspas e espaços', () => {

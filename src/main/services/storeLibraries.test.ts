@@ -99,6 +99,41 @@ describe('scanStoreLibraries', () => {
     expect(candidates.find((c) => c.note === 'Epic Games')!.alternatives).toEqual([]);
   });
 
+  it('manifesto da Epic ou fuel.json da Amazon com campo de tipo errado: só aquele jogo fica de fora', async () => {
+    const root = tmp();
+    const games = path.join(root, 'Jogos');
+    const localAppData = path.join(root, 'Local');
+    const manifests = 'ProgramData/Epic/EpicGamesLauncher/Data/Manifests';
+    await makeTree(root, {
+      [`${manifests}/Bom.item`]: JSON.stringify({ DisplayName: 'Jogo Epic', InstallLocation: path.join(games, 'Epic'), LaunchExecutable: 'jogo.exe' }),
+      [`${manifests}/Caminho.item`]: JSON.stringify({ DisplayName: 'Caminho errado', InstallLocation: 42, LaunchExecutable: 'x.exe' }),
+      [`${manifests}/Nome.item`]: JSON.stringify({ DisplayName: 7, InstallLocation: path.join(games, 'Epic') }),
+      [`${manifests}/Nulo.item`]: 'null',
+      'Jogos/Epic/jogo.exe': BIG,
+      'Jogos/Amazon/Bom/fuel.json': JSON.stringify({ Main: { Command: 'bom.exe' } }),
+      'Jogos/Amazon/Bom/bom.exe': BIG,
+      'Jogos/Amazon/Quebrado/fuel.json': JSON.stringify({ Main: { Command: 5 } }),
+      'Jogos/Amazon/Quebrado/quebrado.exe': BIG,
+      'Local/Amazon Games/Data/Games/Sql/': null,
+    });
+    const amazon = new Database(path.join(localAppData, 'Amazon Games', 'Data', 'Games', 'Sql', 'GameInstallInfo.sqlite'));
+    amazon.exec('CREATE TABLE DbSet (ProductTitle TEXT, InstallDirectory TEXT, Installed INTEGER)');
+    amazon.prepare('INSERT INTO DbSet VALUES (?, ?, 1)').run('Amazon bom', path.join(games, 'Amazon', 'Bom'));
+    amazon.prepare('INSERT INTO DbSet VALUES (?, ?, 1)').run('Amazon quebrado', path.join(games, 'Amazon', 'Quebrado'));
+    amazon.close();
+
+    const candidates = await scanStoreLibraries(
+      { programData: path.join(root, 'ProgramData'), localAppData, appData: root, tempDir: root, readRegistry: async () => new Map() },
+      new Set(),
+    );
+    // O fuel.json quebrado só perde a dica do executável: o jogo entra pelo maior .exe da pasta.
+    expect(candidates.map((c) => [c.title, path.basename(c.path)])).toEqual([
+      ['Amazon bom', 'bom.exe'],
+      ['Amazon quebrado', 'quebrado.exe'],
+      ['Jogo Epic', 'jogo.exe'],
+    ]);
+  });
+
   it('nenhuma loja instalada: lista vazia, sem erro', async () => {
     const root = tmp();
     expect(await scanStoreLibraries({ programData: root, localAppData: root, appData: root, tempDir: root, readRegistry: async () => new Map() }, new Set())).toEqual([]);

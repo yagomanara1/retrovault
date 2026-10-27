@@ -4,10 +4,10 @@ import type { InstalledMod, ModDetails, ModListResult, ModProgress, ModSort, Por
 import type { StoreInstall, StorePort } from '@shared/store';
 import type { ModInstallRepository } from '../../db/repositories/modInstallRepository';
 import { AppError } from '../../errors';
+import type { FetchFn } from '../http';
 import { extract7z } from './archive7z';
 import { downloadFile, GAMEBANANA_HOSTS } from './downloader';
 import { MODS_PER_PAGE, type GameBananaClient } from './gameBanana';
-import type { FetchFn } from './githubClient';
 import { extractZip, safeEntryPath } from './zipExtract';
 
 /** Pacotes de mod que a Loja abre (o resto, só se já for o arquivo que o port lê). */

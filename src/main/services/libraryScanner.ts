@@ -2,6 +2,7 @@ import { type Dirent, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { ConsoleId, DISC_IMAGE_EXTENSIONS, ROM_EXTENSIONS } from '@shared/consoles';
 import type { ScanCandidate, ScanProgress, ScanResult } from '@shared/types';
+import { compactKey } from '@shared/text';
 import { AppError } from '../errors';
 import { detectDiscConsole } from './disc/raDiscHash';
 import { titleFromPath } from './fsUtils';
@@ -79,8 +80,6 @@ const NEEDS_FOLDER_HINT = new Set(['bin', 'img', 'rom', 'iso', 'zip', '7z', 'ccd
 const DISC_FORMATS = new Set(['cue', 'chd', 'm3u', 'gdi', 'cdi', 'pbp', 'cso', 'rvz', 'ciso']);
 const ROM_EXT_SET = new Set(ROM_EXTENSIONS);
 
-const normalize = (s: string) =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const stem = (file: string) => path.basename(file, path.extname(file));
 
 export function isHelperExecutable(fileName: string): boolean {
@@ -112,9 +111,9 @@ export interface ExeInfo {
  * costuma ser bem maior que "Play X.exe", um atalho de 60 KB).
  */
 export function rankExecutables(exes: readonly ExeInfo[], folderNames: readonly string[]): ExeInfo[] {
-  const folders = folderNames.map(normalize).filter((f) => f.length >= 3);
+  const folders = folderNames.map(compactKey).filter((f) => f.length >= 3);
   const score = (e: ExeInfo) => {
-    const name = normalize(stem(e.file));
+    const name = compactKey(stem(e.file));
     let s = 0;
     if (folders.some((f) => name.includes(f) || f.includes(name))) s += 4;
     if (GENERIC_EXE.test(stem(e.file))) s += 1; // main.exe numa pasta só com ele: provável jogo

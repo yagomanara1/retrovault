@@ -8,6 +8,8 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import Database from 'better-sqlite3';
 import type { ScanCandidate } from '@shared/types';
+import { z } from 'zod';
+import { pathExists } from './fsUtils';
 import { isHelperExecutable, rankExecutables, type ExeInfo } from './libraryScanner';
 import { pickSteamRoot, steamApps } from './steam/steamLibrary';
 
@@ -46,8 +48,6 @@ export interface StoreLibraryDeps {
   /** Pasta da Steam fixada (testes numa cópia, RETROVAULT_STEAM_DIR): o registro não é consultado. */
   steamDir?: string | null;
 }
-
-const exists = (p: string) => fs.stat(p).then(() => true, () => false);
 
 /**
  * Lê a chave com o `reg export` (UTF-16, preserva acentos como em "Pokémon"; o `reg query` sai no código
@@ -115,23 +115,33 @@ export async function steamGames(deps: StoreLibraryDeps): Promise<StoreGame[]> {
 
 // ---------- Epic Games ----------
 
-interface EpicManifest {
-  DisplayName?: string;
-  InstallLocation?: string;
-  LaunchExecutable?: string;
-  AppCategories?: string[];
-  bIsIncompleteInstall?: boolean;
+/**
+ * JSON de outro programa (launcher de loja): fora do formato esperado vira null, para um arquivo
+ * estranho tirar da lista só aquele jogo, não a importação inteira. O BOM do Windows é ignorado.
+ */
+async function readForeignJson<T>(file: string, schema: z.ZodType<T>): Promise<T | null> {
+  try {
+    const parsed = schema.safeParse(JSON.parse((await fs.readFile(file, 'utf8')).replace(/^\uFEFF/, '')));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
 }
+
+const EpicManifestSchema = z.object({
+  DisplayName: z.string().optional(),
+  InstallLocation: z.string().optional(),
+  LaunchExecutable: z.string().optional(),
+  AppCategories: z.array(z.string()).optional(),
+  bIsIncompleteInstall: z.boolean().optional(),
+});
 
 export async function epicGames(programData: string): Promise<StoreGame[]> {
   const dir = path.join(programData, 'Epic', 'EpicGamesLauncher', 'Data', 'Manifests');
   const games: StoreGame[] = [];
   for (const name of await fs.readdir(dir).catch(() => [] as string[])) {
     if (!name.toLowerCase().endsWith('.item')) continue;
-    const m = await fs
-      .readFile(path.join(dir, name), 'utf8')
-      .then((t) => JSON.parse(t.replace(/^\uFEFF/, '')) as EpicManifest)
-      .catch(() => null);
+    const m = await readForeignJson(path.join(dir, name), EpicManifestSchema);
     // Só jogos completos (não plugins, editores nem instalações pela metade).
     if (!m?.DisplayName || !m.InstallLocation || m.bIsIncompleteInstall) continue;
     if (m.AppCategories && !m.AppCategories.includes('games')) continue;
@@ -182,18 +192,17 @@ function readSqlite<T>(file: string, query: string): T[] {
   }
 }
 
+const FuelSchema = z.object({ Main: z.object({ Command: z.string().optional() }).optional() });
+
 export async function amazonGames(localAppData: string): Promise<StoreGame[]> {
   const file = path.join(localAppData, 'Amazon Games', 'Data', 'Games', 'Sql', 'GameInstallInfo.sqlite');
-  if (!(await exists(file))) return [];
+  if (!(await pathExists(file))) return [];
   const rows = readSqlite<{ ProductTitle: string; InstallDirectory: string }>(file, 'SELECT ProductTitle, InstallDirectory FROM DbSet WHERE Installed = 1');
   const games: StoreGame[] = [];
   for (const r of rows) {
     if (!r.ProductTitle || !r.InstallDirectory) continue;
     // fuel.json (na pasta do jogo) diz o executável principal.
-    const fuel = await fs
-      .readFile(path.join(r.InstallDirectory, 'fuel.json'), 'utf8')
-      .then((t) => JSON.parse(t.replace(/^\uFEFF/, '')) as { Main?: { Command?: string } })
-      .catch(() => null);
+    const fuel = await readForeignJson(path.join(r.InstallDirectory, 'fuel.json'), FuelSchema);
     const command = fuel?.Main?.Command;
     games.push({ store: 'Amazon Games', title: r.ProductTitle, dir: r.InstallDirectory, exe: command ? path.join(r.InstallDirectory, command) : undefined });
   }
@@ -202,7 +211,7 @@ export async function amazonGames(localAppData: string): Promise<StoreGame[]> {
 
 export async function itchGames(appData: string): Promise<StoreGame[]> {
   const file = path.join(appData, 'itch', 'db', 'butler.db');
-  if (!(await exists(file))) return [];
+  if (!(await pathExists(file))) return [];
   const rows = readSqlite<{ title: string; root: string; folder: string }>(
     file,
     `SELECT g.title AS title, l.path AS root, c.install_folder_name AS folder
@@ -243,9 +252,9 @@ async function rankedExecutables(dir: string, title: string): Promise<ExeInfo[]>
 
 /** Jogo da loja → candidato da revisão (o executável da loja, se existir; senão o mais provável da pasta). */
 async function toCandidate(game: StoreGame, inLibrary: (p: string) => boolean): Promise<ScanCandidate | null> {
-  if (!(await exists(game.dir))) return null; // registro velho de jogo desinstalado
+  if (!(await pathExists(game.dir))) return null; // registro velho de jogo desinstalado
   const ranked = await rankedExecutables(game.dir, game.title);
-  const main = game.exe && (await exists(game.exe)) ? game.exe : ranked[0]?.file;
+  const main = game.exe && (await pathExists(game.exe)) ? game.exe : ranked[0]?.file;
   if (!main) return null;
   const alternatives = ranked.map((e) => e.file).filter((f) => f.toLowerCase() !== main.toLowerCase());
   return {

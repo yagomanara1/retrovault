@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { consoleName } from '@shared/consoles';
 import type { Category, Game } from '@shared/types';
 import { categoryIconOf } from '@shared/categoryIcons';
+import { foldDiacritics } from '@shared/text';
 import {
   useCategories,
   useGameProgress,
@@ -22,7 +23,7 @@ import { useToast } from '@/components/ui/Toast';
 import { TopMenu } from '@/components/layout/TopMenu';
 import { PlayIcon, TrophyIcon } from '@/components/ui/icons';
 
-const normalize = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const normalize = foldDiacritics;
 
 // Tela inicial no estilo do PlayStation 5: arte do jogo em tela cheia, fileira de blocos no topo,
 // título e "Jogar" embaixo à esquerda, capa e troféus à direita. ← → / controle trocam o jogo.

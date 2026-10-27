@@ -4,12 +4,10 @@ import type { PortArt, StorePort } from '@shared/store';
 import type { StoreArtRepository } from '../../db/repositories/storeArtRepository';
 import { AppError } from '../../errors';
 import type { ApiCache } from '../apiCache';
+import { defaultFetch, type FetchFn, httpGet } from '../http';
 import { isAllowedArtUrl } from './catalogSchema';
-import type { FetchFn } from './githubClient';
 import { SteamGridDbClient } from './steamGridDb';
 
-const USER_AGENT = 'RetroVault/0.1 (+desktop launcher)';
-const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_ART_BYTES = 10 * 1024 * 1024;
 const ART_TTL_MS = 7 * 24 * 60 * 60_000;
 const NO_ART: PortArt = { cover: null, hero: null, logo: null, icon: null, source: 'none' };
@@ -156,7 +154,7 @@ export class StoreArtService {
   readonly sgdb: SteamGridDbClient;
 
   constructor(private readonly deps: StoreArtDeps) {
-    this.fetchFn = deps.fetchFn ?? ((url, init) => fetch(url, init));
+    this.fetchFn = deps.fetchFn ?? defaultFetch;
     this.sgdb = new SteamGridDbClient(this.fetchFn);
   }
 
@@ -254,7 +252,7 @@ export class StoreArtService {
     const known = remember ? this.deps.repo.get(url) : null;
     // Arquivo apagado do cofre fora do app: baixa de novo em vez de entregar um endereço quebrado.
     if (known && (await this.deps.artwork.has(known))) return known;
-    const response = await this.fetchFn(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    const response = await httpGet(this.fetchFn, url, { offline: { code: 'STORE_NETWORK', message: 'Sem conexão para baixar a imagem.' } });
     if (response.url && !allowed(response.url)) throw new AppError('FORBIDDEN', 'A imagem foi redirecionada para fora dos endereços permitidos.');
     if (!response.ok) throw new AppError('STORE_HTTP', `Imagem respondeu com erro ${response.status}.`);
     if (Number(response.headers.get('content-length')) > MAX_ART_BYTES) throw new AppError('VALIDATION', 'Imagem grande demais.');

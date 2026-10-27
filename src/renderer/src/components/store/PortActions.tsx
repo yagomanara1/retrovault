@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { availableUpdate, chooseRelease, installKind, quiverPageUrl, type InstallProgress, type StorePort } from '@shared/store';
-import { useInstallProgress, useLaunchGame, useRunningGames, useStoreInstalls, useStoreReleases } from '@/hooks/queries';
+import { useInstallFor, useInstallProgress, useLaunchGame, useRunningGames, useStoreReleases } from '@/hooks/queries';
 import { call, errorMessage } from '@/lib/api';
 import { formatBytes } from '@/lib/format';
 import { Button } from '../ui/Button';
@@ -36,7 +36,7 @@ interface PortActionsProps {
 /** Botões do port: Baixar → progresso com Cancelar → Jogar / Abrir pasta / Desinstalar. */
 export function PortActions({ port, settled }: PortActionsProps) {
   const toast = useToast();
-  const { data: installsData } = useStoreInstalls();
+  const installed = useInstallFor(port.id);
   const progressMap = useInstallProgress();
   const { data: releases } = useStoreReleases(port.id, settled); // mesma consulta da lista de versões (sem custo extra)
   const { data: running = [] } = useRunningGames();
@@ -46,8 +46,7 @@ export function PortActions({ port, settled }: PortActionsProps) {
   const { install, cancel, uninstall, rollback } = usePortInstaller(port);
   const [guard, aiModal] = useAiGuard(port);
 
-  const installed = installsData?.installs.find((i) => i.portId === port.id) ?? null;
-  const progress = progressMap[port.id] ?? null;
+  const progress =progressMap[port.id] ?? null;
   const target = releases ? chooseRelease(releases) : null;
   const update = installed && releases ? availableUpdate(releases, installed) : null;
   // A atualização é a versão guardada no disco (ex.: depois de voltar): troca na hora, sem baixar.

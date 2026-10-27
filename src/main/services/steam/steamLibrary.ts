@@ -4,6 +4,7 @@
 import { promises as fs, realpath } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { pathExists } from '../fsUtils';
 
 const realpathNative = promisify(realpath.native);
 
@@ -100,8 +101,6 @@ async function readVdf(file: string): Promise<Vdf | null> {
   return text === null ? null : parseVdf(text.replace(/^\uFEFF/, ''));
 }
 
-const exists = (p: string) => fs.stat(p).then(() => true, () => false);
-
 // ---------- Pasta da Steam e bibliotecas ----------
 
 /**
@@ -112,7 +111,7 @@ export async function pickSteamRoot(candidates: readonly (string | null | undefi
   for (const c of candidates) {
     if (!c) continue;
     const dir = path.normalize(c);
-    if (await exists(path.join(dir, 'steamapps'))) return realpathNative(dir).catch(() => dir);
+    if (await pathExists(path.join(dir, 'steamapps'))) return realpathNative(dir).catch(() => dir);
   }
   return null;
 }
@@ -187,7 +186,7 @@ export async function steamApps(root: string): Promise<SteamApp[]> {
     for (const name of await fs.readdir(dir).catch(() => [] as string[])) {
       if (!/^appmanifest_\d+\.acf$/i.test(name)) continue;
       const app = appFromManifest(library, await readVdf(path.join(dir, name)));
-      if (app && !apps.has(app.appId) && (await exists(app.dir))) apps.set(app.appId, app);
+      if (app && !apps.has(app.appId) && (await pathExists(app.dir))) apps.set(app.appId, app);
     }
   }
   return [...apps.values()];

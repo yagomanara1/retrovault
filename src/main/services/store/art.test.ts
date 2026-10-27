@@ -8,9 +8,10 @@ import { StoreArtRepository } from '../../db/repositories/storeArtRepository';
 import { ApiCache } from '../apiCache';
 import { z } from 'zod';
 import { toIpcError } from '../../errors';
+import type { FetchFn } from '../http';
 import { isAllowedArtUrl, parseCatalog, toRawGitHubUrl } from './catalogSchema';
 import { StoreCatalogService } from './catalogService';
-import { GitHubClient, type FetchFn } from './githubClient';
+import { GitHubClient } from './githubClient';
 import { gitSymlinkTarget, imageFormat, pngFromIco, StoreArtService } from './storeArt';
 
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 7)]);
@@ -110,6 +111,13 @@ describe('StoreArtService', () => {
     await service.art(PORT);
     expect(log.filter((u) => u.includes('logo.png'))).toHaveLength(1); // segunda vez vem do store_art
     expect(service.referencedArtwork()).toEqual([art.logo]);
+  });
+
+  it('falta de internet ao baixar uma imagem vira STORE_NETWORK, como nos outros clientes', async () => {
+    const { service } = setup(null, async () => {
+      throw new TypeError('fetch failed');
+    });
+    await expect(service.importRemote(PORT.art!.logo!, { photo: false })).rejects.toMatchObject({ code: 'STORE_NETWORK' });
   });
 
   it('arquivo apagado do cofre fora do app: baixa de novo em vez de devolver um endereço quebrado', async () => {

@@ -1,13 +1,13 @@
 import type { StoreCatalog, StorePort, StoreRelease } from '@shared/store';
 import { AppError } from '../../errors';
 import type { ApiCache } from '../apiCache';
+import { defaultFetch, type FetchFn, httpGet } from '../http';
 import { CATALOG_SCHEMA_VERSION, parseCatalog } from './catalogSchema';
-import type { FetchFn, GitHubClient } from './githubClient';
+import type { GitHubClient } from './githubClient';
 import { SEED_CATALOG } from './seedCatalog';
 
 const CATALOG_TTL_MS = 6 * 60 * 60_000;
 const MAX_CATALOG_BYTES = 2 * 1024 * 1024;
-const REQUEST_TIMEOUT_MS = 20_000;
 
 interface StoreCatalogDeps {
   cache: ApiCache;
@@ -28,7 +28,7 @@ export class StoreCatalogService {
   private readonly fetchFn: FetchFn;
 
   constructor(private readonly deps: StoreCatalogDeps) {
-    this.fetchFn = deps.fetchFn ?? ((url, init) => fetch(url, init));
+    this.fetchFn = deps.fetchFn ?? defaultFetch;
   }
 
   /** Catálogo (remoto ou embutido) + os ports adicionados pelo usuário. */
@@ -103,15 +103,10 @@ export class StoreCatalogService {
   }
 
   private async fetchRemote(url: string): Promise<{ ports: StorePort[]; skipped: string[] }> {
-    let response: Response;
-    try {
-      response = await this.fetchFn(url, {
-        headers: { Accept: 'application/json', 'User-Agent': 'RetroVault/0.1 (+desktop launcher)' },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-    } catch (err) {
-      throw new AppError('STORE_NETWORK', 'Não foi possível acessar o endereço do catálogo.', { cause: err });
-    }
+    const response = await httpGet(this.fetchFn, url, {
+      headers: { Accept: 'application/json' },
+      offline: { code: 'STORE_NETWORK', message: 'Não foi possível acessar o endereço do catálogo.' },
+    });
     if (response.status === 404) throw new AppError('NOT_FOUND', 'Nenhum catálogo neste endereço (404). Confira o link "Raw" do arquivo.');
     if (!response.ok) throw new AppError('STORE_HTTP', `O catálogo respondeu com erro ${response.status}.`);
     const text = await response.text();

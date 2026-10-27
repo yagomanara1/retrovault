@@ -97,6 +97,17 @@ describe('LauncherService — jogos da Steam', () => {
     expect(ended).toEqual([['Jogo', 0]]);
   });
 
+  it('isRunning diz se aquele jogo está aberto agora', async () => {
+    const l = launcher();
+    const t0 = Date.now();
+    expect(l.isRunning(1)).toBe(false);
+    await l.launch(1);
+    expect(l.isRunning(1)).toBe(true);
+    expect(l.isRunning(2)).toBe(false);
+    listener!({ at: t0 + STEAM_START_TIMEOUT_MS + 1, processes: [] });
+    expect(l.isRunning(1)).toBe(false);
+  });
+
   it('sem lista de processos: só abre pela Steam, sem sessão', async () => {
     const l = launcher(false);
     await l.launch(1);

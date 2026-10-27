@@ -1,6 +1,7 @@
 import { type Dirent, promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Game } from '@shared/types';
+import { pathExists } from '../fsUtils';
 
 // Descobre onde um jogo guarda o save. Só devolve caminhos que existem.
 //  - Ports de PS4 (gow3_pc, bloodborne_pc…): <pasta do exe>\user\savedata
@@ -24,8 +25,6 @@ export interface KnownFolders {
   savedGames: string;
   localAppData: string;
 }
-
-const exists = (p: string) => fs.stat(p).then(() => true, () => false);
 
 async function readDirSafe(dir: string): Promise<Dirent[]> {
   try {
@@ -58,7 +57,7 @@ export class SaveLocator {
     const found: string[] = [];
 
     const ps4 = path.join(exeDir, 'user', 'savedata');
-    if (await exists(ps4)) found.push(ps4);
+    if (await pathExists(ps4)) found.push(ps4);
 
     for (const entry of await readDirSafe(exeDir)) {
       if (entry.isFile() && SAVE_FILE.test(entry.name)) found.push(path.join(exeDir, entry.name));
@@ -71,7 +70,7 @@ export class SaveLocator {
         path.join(this.folders.savedGames, name),
         path.join(this.folders.localAppData, name, 'Saved', 'SaveGames'),
       ]) {
-        if (await exists(dir)) found.push(dir);
+        if (await pathExists(dir)) found.push(dir);
       }
     }
     return found;

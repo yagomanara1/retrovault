@@ -7,9 +7,10 @@ import Ajv from 'ajv';
 import { openDatabase } from '../../db/database';
 import { CacheRepository } from '../../db/repositories/cacheRepository';
 import { ApiCache } from '../apiCache';
+import type { FetchFn } from '../http';
 import { parseCatalog, portSchema } from './catalogSchema';
 import { StoreCatalogService } from './catalogService';
-import type { FetchFn, GitHubClient } from './githubClient';
+import type { GitHubClient } from './githubClient';
 import { SEED_CATALOG } from './seedCatalog';
 import { portsSection, renderReadme } from '../../../../scripts/catalog/readme';
 

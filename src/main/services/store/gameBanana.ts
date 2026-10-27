@@ -1,11 +1,9 @@
 import type { ModSort } from '@shared/mods';
 import { AppError } from '../../errors';
 import type { ApiCache } from '../apiCache';
-import type { FetchFn } from './githubClient';
+import { defaultFetch, type FetchFn, httpGet } from '../http';
 
 const API = 'https://gamebanana.com/apiv11';
-const USER_AGENT = 'RetroVault/0.1 (+desktop launcher)';
-const REQUEST_TIMEOUT_MS = 20_000;
 const LIST_TTL_MS = 15 * 60_000;
 const DETAILS_TTL_MS = 30 * 60_000;
 export const MODS_PER_PAGE = 24;
@@ -124,7 +122,7 @@ function summary(m: RawMod): GbModSummary {
 export class GameBananaClient {
   constructor(
     private readonly cache: ApiCache,
-    private readonly fetchFn: FetchFn = (url, init) => fetch(url, init),
+    private readonly fetchFn: FetchFn = defaultFetch,
   ) {}
 
   async listMods(gameId: number, opts: { page: number; sort: ModSort; query?: string }): Promise<{ mods: GbModSummary[]; total: number }> {
@@ -166,15 +164,10 @@ export class GameBananaClient {
   }
 
   private async get<T>(path: string): Promise<T> {
-    let response: Response;
-    try {
-      response = await this.fetchFn(`${API}${path}`, {
-        headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-    } catch (err) {
-      throw new AppError('STORE_NETWORK', 'Sem conexão com o GameBanana.', { cause: err });
-    }
+    const response = await httpGet(this.fetchFn, `${API}${path}`, {
+      headers: { Accept: 'application/json' },
+      offline: { code: 'STORE_NETWORK', message: 'Sem conexão com o GameBanana.' },
+    });
     if (response.status === 404) throw new AppError('NOT_FOUND', 'Não encontrado no GameBanana.');
     if (!response.ok) throw new AppError('STORE_HTTP', `O GameBanana respondeu com erro ${response.status}.`);
     try {

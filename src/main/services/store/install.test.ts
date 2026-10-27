@@ -9,10 +9,10 @@ import { StoreInstallRepository } from '../../db/repositories/storeInstallReposi
 import { AppError } from '../../errors';
 import { makeTree, useTempDir } from '../../testing/tempDir';
 import { buildZip } from '../../testing/zip';
+import type { FetchFn } from '../http';
 import type { StoreCatalogService } from './catalogService';
 import { downloadFile, isAllowedDownloadUrl } from './downloader';
-import type { FetchFn } from './githubClient';
-import { InstallService, resolveExecutable, safeDirName, type InstallServiceDeps } from './installService';
+import { InstallService, isPortHelper, resolveExecutable, safeDirName, type InstallServiceDeps } from './installService';
 import { parseCatalog } from './catalogSchema';
 import { SEED_CATALOG } from './seedCatalog';
 import { carryUserFiles, listFiles, readManifest, writeManifest } from './userFiles';
@@ -150,6 +150,17 @@ describe('resolveExecutable', () => {
     expect(path.basename(await resolveExecutable(tmp(), { name: 'x', executable: 'renomeado.exe' }))).toBe('sm64coopdx.exe');
   });
 
+  it('jogo com "crash" ou "update" no nome não é confundido com auxiliar', async () => {
+    await makeTree(tmp(), {
+      'Crash™ Team Racing Nitro-Fueled.exe': 'MZ jogo '.repeat(10),
+      'CrashReporter.exe': 'MZ relatório',
+      'Updater.exe': 'MZ atualizador',
+    });
+    expect(path.basename(await resolveExecutable(tmp(), { name: 'x', executable: 'renomeado.exe' }))).toBe(
+      'Crash™ Team Racing Nitro-Fueled.exe',
+    );
+  });
+
   it('sem executável vira erro claro', async () => {
     await makeTree(tmp(), { 'readme.txt': 'oi' });
     await expect(resolveExecutable(tmp(), { name: 'x' })).rejects.toMatchObject({ code: 'VALIDATION' });
@@ -161,6 +172,12 @@ describe('resolveExecutable', () => {
     for (const p of parseCatalog(SEED_CATALOG).ports) {
       if (p.install === 'portable' || p.install === 'installer') continue;
       expect(p.executable, p.id).toMatch(/\.exe$/);
+    }
+  });
+
+  it('nenhum executável do catálogo embutido é tratado como auxiliar', () => {
+    for (const p of parseCatalog(SEED_CATALOG).ports) {
+      if (p.executable) expect(isPortHelper(p.executable), `${p.id}: ${p.executable}`).toBe(false);
     }
   });
 
@@ -380,6 +397,23 @@ describe('InstallService', () => {
     const forward = await service.install('demo', 'v2');
     expect(forward).toMatchObject({ tag: 'v2', previous: { tag: 'v1' } });
     expect(downloads).toBe(2);
+  });
+
+  it('reinstalar a mesma versão: troca a pasta levando o save, a cópia velha vai para a Lixeira e a anterior continua', async () => {
+    const releases = [release('v1', true, zipOf('v1'))];
+    const { service, calls, root } = setup(releases);
+    const v1 = await service.install('demo');
+    releases.unshift(release('v2', true, zipOf('v2')));
+    const v2 = await service.install('demo');
+    await makeTree(v2.installDir, { 'Save/file1.sav': 'progresso', 'data/pacote.txt': 'estragado' });
+
+    const again = await service.install('demo', 'v2');
+    expect(again).toMatchObject({ tag: 'v2', installDir: path.join(root, 'demo', 'v2'), gameId: v2.gameId, previous: { tag: 'v1', installDir: v1.installDir } });
+    expect(await fs.readFile(path.join(again.installDir, 'Save', 'file1.sav'), 'utf8')).toBe('progresso');
+    expect(await fs.readFile(path.join(again.installDir, 'data', 'pacote.txt'), 'utf8')).toBe('pacote v2');
+    expect(calls.trashed).toHaveLength(1);
+    expect(calls.trashed[0]).toMatch(/[\\/]v2\.old-\d+$/);
+    expect((await fs.readdir(path.join(root, 'demo'))).sort()).toEqual(['v1', 'v2']);
   });
 
   it('compilação republicada com a mesma tag ganha pasta própria e a anterior continua', async () => {

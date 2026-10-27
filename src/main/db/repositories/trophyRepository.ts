@@ -291,6 +291,15 @@ export class TrophyRepository {
   }
 
   /** Listas que vêm de um emulador (os desbloqueios são relidos do TROPUSR.DAT dele). */
+  emulatorSet(gameId: number): EmulatorSet | null {
+    const row = this.db
+      .prepare<[number], { emulator: 'rpcs3' | 'vita3k'; progress_path: string }>(
+        'SELECT emulator, progress_path FROM trophy_sets WHERE game_id = ? AND emulator IS NOT NULL AND progress_path IS NOT NULL',
+      )
+      .get(gameId);
+    return row ? { gameId, emulator: row.emulator, progressPath: row.progress_path } : null;
+  }
+
   emulatorSets(): EmulatorSet[] {
     return this.db
       .prepare<[], { game_id: number; emulator: 'rpcs3' | 'vita3k'; progress_path: string }>(

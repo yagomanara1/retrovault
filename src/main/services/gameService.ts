@@ -13,8 +13,10 @@ import type {
 } from '@shared/types';
 import type { GamePatch, GameRepository } from '../db/repositories/gameRepository';
 import { AppError } from '../errors';
+import { linkRaArtwork, raCover, slotPatch, unlinkRaArtwork } from './artworkPolicy';
 import { type ArtworkService, isLocalArtwork } from './artworkService';
 import { assertFile, titleFromPath } from './fsUtils';
+import { hasImageSignature } from './imageSignature';
 import type { RetroAchievementsClient } from './retroachievements/client';
 import type { RetroArchService } from './retroarchService';
 import { canAutoMatch, detectConsole, hashRom } from './romHasher';
@@ -26,8 +28,12 @@ function noMatch(reason: MatchResult['reason'], hash: string | null = null): Mat
   return { matched: false, reason, hash, raGameId: null, raTitle: null };
 }
 
-const SLOT_FIELD = { cover: 'coverUrl', background: 'backgroundUrl', icon: 'iconUrl' } as const;
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+/** Jogo "executável" no Windows: só o que o sistema abre direto. */
+function assertExecutable(filePath: string): void {
+  if (process.platform === 'win32' && !EXECUTABLE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) {
+    throw new AppError('VALIDATION', 'Selecione um arquivo .exe, .bat, .cmd ou atalho (.lnk).');
+  }
+}
 
 export class GameService {
   constructor(
@@ -42,10 +48,13 @@ export class GameService {
     return this.repo.list();
   }
 
+  /** O jogo, ou null se ele não está (mais) na biblioteca. */
+  find(id: number): Game | null {
+    return this.repo.get(id);
+  }
+
   get(id: number): Game {
-    const game = this.repo.get(id);
-    if (!game) throw new AppError('NOT_FOUND', 'Jogo não encontrado na biblioteca.');
-    return game;
+    return this.found(this.find(id));
   }
 
   async inspect(filePath: string, kind: GameKind): Promise<GameInspection> {
@@ -78,10 +87,7 @@ export class GameService {
       corePath = input.corePath ?? suggestCore(consoleId, (await this.retroarch.status()).cores);
       if (input.raGameId == null) match = await this.identify(filePath, consoleId);
     } else {
-      const ext = path.extname(filePath).toLowerCase();
-      if (process.platform === 'win32' && !EXECUTABLE_EXTENSIONS.has(ext)) {
-        throw new AppError('VALIDATION', 'Selecione um arquivo .exe, .bat, .cmd ou atalho (.lnk).');
-      }
+      assertExecutable(filePath);
       iconUrl = await this.artwork.extractExecutableIcon(filePath);
     }
 
@@ -107,18 +113,9 @@ export class GameService {
   async update(input: UpdateGameInput): Promise<Game> {
     const current = this.get(input.id);
     const { id, ...patch } = input;
-    let game = this.repo.update(id, { ...patch, title: patch.title?.trim() || undefined })!;
-
-    if (input.raGameId !== undefined && input.raGameId !== current.raGameId) {
-      // Ao desvincular, remove só a arte que veio do RetroAchievements; a personalizada fica.
-      game = input.raGameId
-        ? await this.syncArtwork(game, input.raGameId)
-        : this.repo.update(id, {
-            coverUrl: isLocalArtwork(current.coverUrl) ? undefined : null,
-            iconUrl: isLocalArtwork(current.iconUrl) || current.kind === 'executable' ? undefined : null,
-          })!;
-    }
-    return game;
+    const game = this.save(id, { ...patch, title: patch.title?.trim() || undefined });
+    if (input.raGameId === undefined || input.raGameId === current.raGameId) return game;
+    return input.raGameId ? this.syncArtwork(game, input.raGameId) : this.save(id, unlinkRaArtwork(current));
   }
 
   async rematch(id: number): Promise<AddGameResult> {
@@ -127,7 +124,7 @@ export class GameService {
       throw new AppError('VALIDATION', 'A identificação automática funciona apenas para ROMs do RetroArch.');
     }
     const match = await this.identify(game.path, game.consoleId);
-    let updated = this.repo.update(id, { romHash: match.hash })!;
+    let updated = this.save(id, { romHash: match.hash });
     if (match.raGameId) {
       updated = await this.update({ id, raGameId: match.raGameId });
     }
@@ -144,32 +141,24 @@ export class GameService {
     const game = this.get(id);
     const filePath = path.resolve(newPath);
     await assertFile(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-    if (game.kind === 'executable' && process.platform === 'win32' && !EXECUTABLE_EXTENSIONS.has(ext)) {
-      throw new AppError('VALIDATION', 'Selecione um arquivo .exe, .bat, .cmd ou atalho (.lnk).');
-    }
+    if (game.kind === 'executable') assertExecutable(filePath);
     const other = this.repo.list().find((g) => g.id !== id && g.path.toLowerCase() === filePath.toLowerCase());
     if (other) throw new AppError('DUPLICATE', `Este arquivo já pertence a "${other.title}" na biblioteca.`);
-    return this.repo.updatePath(id, filePath)!;
+    return this.found(this.repo.updatePath(id, filePath));
   }
 
   // ---------- Arte (capa, fundo, ícone) ----------
 
   async setArtworkFromFile(id: number, slot: ArtworkSlot, sourcePath: string): Promise<Game> {
     this.get(id);
-    const url = await this.artwork.importImage(sourcePath);
-    const patch: GamePatch = {};
-    patch[SLOT_FIELD[slot]] = url;
-    return this.repo.update(id, patch)!;
+    return this.save(id, slotPatch(slot, await this.artwork.importImage(sourcePath)));
   }
 
   /** Arte já guardada no cofre (rv-media://), ex.: escolhida na busca online. */
   setArtworkUrl(id: number, slot: ArtworkSlot, url: string): Game {
     this.get(id);
     if (!isLocalArtwork(url)) throw new AppError('VALIDATION', 'Arte inválida.');
-    const patch: GamePatch = {};
-    patch[SLOT_FIELD[slot]] = url;
-    return this.repo.update(id, patch)!;
+    return this.save(id, slotPatch(slot, url));
   }
 
   /**
@@ -178,7 +167,7 @@ export class GameService {
    */
   async setArtworkFromData(id: number, slot: ArtworkSlot, data: Buffer): Promise<Game> {
     this.get(id);
-    const format = data.subarray(0, 4).equals(PNG_SIGNATURE) ? 'png' : data[0] === 0xff && data[1] === 0xd8 ? 'jpg' : null;
+    const format = (['png', 'jpg'] as const).find((f) => hasImageSignature(data, f));
     if (!format) throw new AppError('VALIDATION', 'A imagem do editor não é PNG nem JPEG.');
     const url = slot === 'icon' ? await this.artwork.saveGraphic(data, format) : await this.artwork.savePhoto(data, format, 1200);
     return this.setArtworkUrl(id, slot, url);
@@ -196,11 +185,10 @@ export class GameService {
     switch (slot) {
       case 'background': {
         const dump = await this.dumpArt.find(game);
-        return this.repo.update(id, { backgroundUrl: await this.importOrNull(dump?.backgroundPath) })!;
+        return this.save(id, { backgroundUrl: await this.importOrNull(dump?.backgroundPath) });
       }
       case 'cover': {
-        const progress = await this.progressOrNull(game.raGameId);
-        return this.repo.update(id, { coverUrl: progress?.boxArtUrl ?? progress?.titleImageUrl ?? null })!;
+        return this.save(id, { coverUrl: raCover(await this.progressOrNull(game.raGameId)) });
       }
       case 'icon': {
         const iconUrl =
@@ -208,7 +196,7 @@ export class GameService {
             ? ((await this.importOrNull((await this.dumpArt.find(game))?.iconPath)) ??
               (await this.artwork.extractExecutableIcon(game.path)))
             : ((await this.progressOrNull(game.raGameId))?.iconUrl ?? null);
-        return this.repo.update(id, { iconUrl })!;
+        return this.save(id, { iconUrl });
       }
     }
   }
@@ -229,14 +217,11 @@ export class GameService {
     if (!game.backgroundUrl && dump.backgroundPath) {
       patch.backgroundUrl = (await this.importOrNull(dump.backgroundPath)) ?? undefined;
     }
-    if (dump.iconPath) {
-      const isDefaultIcon = !game.iconUrl || game.iconUrl === (await this.artwork.extractExecutableIcon(game.path));
-      if (isDefaultIcon) {
-        const iconUrl = await this.importOrNull(dump.iconPath);
-        if (iconUrl && iconUrl !== game.iconUrl) patch.iconUrl = iconUrl;
-      }
+    if (dump.iconPath && (await this.hasDefaultIcon(game))) {
+      const iconUrl = await this.importOrNull(dump.iconPath);
+      if (iconUrl && iconUrl !== game.iconUrl) patch.iconUrl = iconUrl;
     }
-    return Object.values(patch).some((v) => v !== undefined) ? this.repo.update(id, patch) : null;
+    return Object.values(patch).some((v) => v !== undefined) ? this.save(id, patch) : null;
   }
 
   /** Importa uma imagem do dump; falhas (arquivo corrompido, removido) viram null. */
@@ -296,7 +281,7 @@ export class GameService {
     const patch: GamePatch = {};
     if (!game.coverUrl && art.cover) patch.coverUrl = art.cover;
     if (!game.backgroundUrl && art.background) patch.backgroundUrl = art.background;
-    return Object.keys(patch).length ? this.repo.update(id, patch) : null;
+    return Object.keys(patch).length ? this.save(id, patch) : null;
   }
 
   /**
@@ -361,11 +346,16 @@ export class GameService {
    */
   private async syncArtwork(game: Game, raGameId: number): Promise<Game> {
     const progress = await this.progressOrNull(raGameId);
-    if (!progress) return this.get(game.id);
-    const keepIcon = isLocalArtwork(game.iconUrl) || (game.kind === 'executable' && !!game.iconUrl);
-    return this.repo.update(game.id, {
-      coverUrl: isLocalArtwork(game.coverUrl) ? undefined : (progress.boxArtUrl ?? progress.titleImageUrl),
-      iconUrl: keepIcon ? undefined : progress.iconUrl,
-    })!;
+    return progress ? this.save(game.id, linkRaArtwork(game, progress)) : this.get(game.id);
+  }
+
+  /** Grava e devolve o jogo; se ele sumiu no meio do caminho (removido em outra janela), NOT_FOUND. */
+  private save(id: number, patch: GamePatch): Game {
+    return this.found(this.repo.update(id, patch));
+  }
+
+  private found(game: Game | null): Game {
+    if (!game) throw new AppError('NOT_FOUND', 'Jogo não encontrado na biblioteca.');
+    return game;
   }
 }
