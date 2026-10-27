@@ -131,6 +131,13 @@ describe('GameService', () => {
   });
 
   describe('jogo que não existe', () => {
+    it('find devolve null em vez de lançar (para quem só quer saber se o jogo ainda está lá)', async () => {
+      const { service } = setup();
+      const { game } = await service.add({ kind: 'executable', path: exe });
+      expect(service.find(game.id)).toMatchObject({ id: game.id, title: 'Meu Jogo' });
+      expect(service.find(99)).toBeNull();
+    });
+
     it('editar, mover, trocar arte e remover viram NOT_FOUND', async () => {
       const { service } = setup();
       await expect(service.update({ id: 99, title: 'x' })).rejects.toMatchObject({ code: 'NOT_FOUND' });

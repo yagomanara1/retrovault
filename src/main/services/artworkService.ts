@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { app, nativeImage, shell } from 'electron';
 import { AppError } from '../errors';
+import { hasImageSignature, type ImageFormat } from './imageSignature';
 import { extractLargestIcon } from './peIcon';
 
 export const ARTWORK_SCHEME = 'rv-media';
@@ -11,7 +12,7 @@ const URL_PREFIX = `${ARTWORK_SCHEME}://artwork/`;
 const FILE_PATTERN = /^[a-f0-9]{32}\.(png|jpg|webp|gif)$/;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 
-type StoredFormat = 'png' | 'jpg' | 'webp' | 'gif';
+type StoredFormat = ImageFormat;
 
 const PASSTHROUGH: Record<string, StoredFormat> = {
   '.png': 'png',
@@ -27,20 +28,6 @@ export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'ic
 
 export function isLocalArtwork(url: string | null | undefined): boolean {
   return !!url && url.startsWith(URL_PREFIX);
-}
-
-/** Confere a assinatura do arquivo: a extensão sozinha não garante que é uma imagem. */
-export function hasImageSignature(data: Buffer, format: StoredFormat): boolean {
-  switch (format) {
-    case 'png':
-      return data.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
-    case 'jpg':
-      return data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
-    case 'gif':
-      return data.subarray(0, 4).toString('latin1') === 'GIF8';
-    case 'webp':
-      return data.subarray(0, 4).toString('latin1') === 'RIFF' && data.subarray(8, 12).toString('latin1') === 'WEBP';
-  }
 }
 
 /**

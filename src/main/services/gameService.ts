@@ -14,8 +14,9 @@ import type {
 import type { GamePatch, GameRepository } from '../db/repositories/gameRepository';
 import { AppError } from '../errors';
 import { linkRaArtwork, raCover, slotPatch, unlinkRaArtwork } from './artworkPolicy';
-import { type ArtworkService, hasImageSignature, isLocalArtwork } from './artworkService';
+import { type ArtworkService, isLocalArtwork } from './artworkService';
 import { assertFile, titleFromPath } from './fsUtils';
+import { hasImageSignature } from './imageSignature';
 import type { RetroAchievementsClient } from './retroachievements/client';
 import type { RetroArchService } from './retroarchService';
 import { canAutoMatch, detectConsole, hashRom } from './romHasher';
@@ -47,8 +48,13 @@ export class GameService {
     return this.repo.list();
   }
 
+  /** O jogo, ou null se ele não está (mais) na biblioteca. */
+  find(id: number): Game | null {
+    return this.repo.get(id);
+  }
+
   get(id: number): Game {
-    return this.found(this.repo.get(id));
+    return this.found(this.find(id));
   }
 
   async inspect(filePath: string, kind: GameKind): Promise<GameInspection> {

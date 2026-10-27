@@ -121,7 +121,7 @@ describe('TrophyService com emuladores', () => {
     let saved = 0;
     const service = new TrophyService(
       repo,
-      { get: (id: number) => gameRepo.get(id)!, list: () => gameRepo.list() } as unknown as GameService,
+      { get: (id: number) => gameRepo.get(id)!, find: (id: number) => gameRepo.get(id), list: () => gameRepo.list() } as unknown as GameService,
       { getTrophyKey: () => null } as unknown as SettingsService,
       { saveImage: async () => `rv-media://artwork/${++saved}.png` } as unknown as ArtworkService,
       { locate: async () => null } as unknown as TrpLocator,
