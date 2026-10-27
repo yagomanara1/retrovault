@@ -1,0 +1,121 @@
+/* Adicionar pasta e importar das lojas. */
+
+/* ---------- Adicionar pasta ---------- */
+
+.scan-intro__list {
+  margin: 0 0 20px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.scan-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 0 8px;
+  text-align: center;
+}
+.scan-status p {
+  margin: 0;
+}
+.scan-status .progress {
+  width: 100%;
+}
+.scan-status__dir {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.scan-review {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.scan-review__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.scan-review__bulk {
+  display: flex;
+  gap: 4px;
+}
+.scan-review__list {
+  max-height: min(55vh, 520px);
+  overflow-y: auto;
+  position: relative;
+  padding-right: 4px;
+}
+.scan-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.scan-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+}
+.scan-item--disabled {
+  opacity: 0.55;
+}
+.scan-item__check {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-strong);
+}
+.scan-item__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.scan-item__title {
+  font-weight: 600;
+}
+.scan-item__path {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scan-item__note {
+  font-size: 11px;
+  color: var(--accent);
+}
+.scan-item__side select {
+  max-width: 220px;
+}
+.tag--warn {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+.scan-done {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.scan-done p {
+  margin: 0;
+}
+.scan-done__failed {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  max-height: 200px;
+  overflow-y: auto;
+}

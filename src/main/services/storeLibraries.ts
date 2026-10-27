@@ -69,7 +69,7 @@ export async function exportRegistry(key: string, tempDir: string): Promise<Regi
 export function parseRegExport(text: string): RegistryTree {
   const out: RegistryTree = new Map();
   let current: Record<string, string> | null = null;
-  for (const raw of text.replace(/^﻿/, '').split(/\r?\n/)) {
+  for (const raw of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
     const line = raw.trim();
     const section = line.match(/^\[(.+)\]$/);
     if (section) {
@@ -130,7 +130,7 @@ export async function epicGames(programData: string): Promise<StoreGame[]> {
     if (!name.toLowerCase().endsWith('.item')) continue;
     const m = await fs
       .readFile(path.join(dir, name), 'utf8')
-      .then((t) => JSON.parse(t.replace(/^﻿/, '')) as EpicManifest)
+      .then((t) => JSON.parse(t.replace(/^\uFEFF/, '')) as EpicManifest)
       .catch(() => null);
     // Só jogos completos (não plugins, editores nem instalações pela metade).
     if (!m?.DisplayName || !m.InstallLocation || m.bIsIncompleteInstall) continue;
@@ -192,7 +192,7 @@ export async function amazonGames(localAppData: string): Promise<StoreGame[]> {
     // fuel.json (na pasta do jogo) diz o executável principal.
     const fuel = await fs
       .readFile(path.join(r.InstallDirectory, 'fuel.json'), 'utf8')
-      .then((t) => JSON.parse(t.replace(/^﻿/, '')) as { Main?: { Command?: string } })
+      .then((t) => JSON.parse(t.replace(/^\uFEFF/, '')) as { Main?: { Command?: string } })
       .catch(() => null);
     const command = fuel?.Main?.Command;
     games.push({ store: 'Amazon Games', title: r.ProductTitle, dir: r.InstallDirectory, exe: command ? path.join(r.InstallDirectory, command) : undefined });

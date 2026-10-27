@@ -129,8 +129,10 @@ export class DiscordRpc {
     this.buffer = decoded.rest;
     for (const { op, data } of decoded.frames) {
       if (op === Op.Ping) socket.write(encodeFrame(Op.Pong, data));
-      else if (op === Op.Close) this.onReady ? this.onReady(new Error(String(data.message ?? 'recusado'))) : this.drop();
-      else if (op === Op.Frame) {
+      else if (op === Op.Close) {
+        if (this.onReady) this.onReady(new Error(String(data.message ?? 'recusado')));
+        else this.drop();
+      } else if (op === Op.Frame) {
         if (data.cmd === 'DISPATCH' && data.evt === 'READY') this.onReady?.();
         const waiting = typeof data.nonce === 'string' ? this.pending.get(data.nonce) : undefined;
         if (waiting) {

@@ -286,6 +286,8 @@ describe('mensagens claras', () => {
     expect(toIpcError(single.error)).toEqual({ code: 'VALIDATION', message: 'O catálogo precisa estar num endereço https.' });
     const many = z.object({ a: z.string(), b: z.number() }).safeParse({});
     expect(toIpcError(many.error).message).toMatch(/^Dados inválidos — a: .*; b: /);
+    // Mensagens padrão do zod em português (errors.ts configura o idioma).
+    expect(toIpcError(many.error).message).toMatch(/Entrada inválida/);
   });
 
   it('JSON que não é catálogo explica o formato esperado', () => {

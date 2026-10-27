@@ -229,18 +229,18 @@ describe('Nintendo DS', () => {
     return { rom, expected };
   }
 
-  it('cabeçalho + ARM9 + ARM7 + ícone; com o cabeçalho do SuperCard, o mesmo hash', () => {
+  it('cabeçalho + ARM9 + ARM7 + ícone; com o cabeçalho do SuperCard, o mesmo hash', async () => {
     const { rom, expected } = ndsRom();
-    expect(hashNds(rom)).toBe(expected);
+    expect(await hashNds(rom)).toBe(expected);
     const superCard = Buffer.alloc(0x200);
     superCard.set([0x2e, 0, 0, 0xea]);
     superCard.set([0x44, 0x46, 0x96, 0], 0xb0);
-    expect(hashNds(Buffer.concat([superCard, rom]))).toBe(expected);
+    expect(await hashNds(Buffer.concat([superCard, rom]))).toBe(expected);
   });
 
-  it('tamanho absurdo de código: não é ROM de DS', () => {
+  it('tamanho absurdo de código: não é ROM de DS', async () => {
     const { rom } = ndsRom();
     rom.writeUInt32LE(20 * 1024 * 1024, 0x2c);
-    expect(hashNds(rom)).toBeNull();
+    expect(await hashNds(rom)).toBeNull();
   });
 });

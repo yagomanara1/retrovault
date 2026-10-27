@@ -1,0 +1,312 @@
+/* Loja de ports. */
+
+/* ---------- Loja de ports ---------- */
+
+.store__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  transition: box-shadow var(--dur-fast) ease;
+}
+.store__search:focus-within {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+.store__search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 14px;
+}
+.store__search-input:focus-visible {
+  box-shadow: none;
+}
+.store__search-input::placeholder {
+  color: var(--faint);
+}
+.store__footnote {
+  margin: 0;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.store-port {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.store-port__hero {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+/* Artes do port (capa do jogo original, SteamGridDB ou logo do projeto) */
+/* Ladrilho: quadrado escuro com a capa inteira dentro (capas de caixa não são quadradas). */
+.port-tile {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 11px;
+  background: #0c0f15;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.port-tile__cover {
+  width: 86%;
+  height: 86%;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
+}
+.port-tile__icon {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.port-tile--large {
+  border-radius: 18px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 14px 30px rgba(0, 0, 0, 0.45);
+}
+.store-port__eyebrow {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.store-port__origin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* Marcação de IA: "gerado" chama atenção (aviso antes de baixar); "com ajuda" só informa. */
+.store-ai {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.store-ai--generated {
+  background: rgba(255, 159, 10, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 159, 10, 0.4);
+  color: var(--orange);
+}
+.store-port__based {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.store-port__chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(10, 132, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.35);
+  color: #9cc9ff;
+  font-weight: 600;
+}
+.port-banner {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 190px;
+  margin: -18px -20px 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: rgba(0, 0, 0, 0.25);
+  animation: ps-rise var(--dur-med) var(--ease-out) both;
+}
+/* Só o logo: faixa mais baixa, sem foto atrás. */
+.port-banner--logo-only {
+  height: 120px;
+  background: radial-gradient(120% 140% at 50% 0%, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.2));
+}
+.port-banner__hero {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Escurece embaixo para o texto do cartão continuar legível. */
+  mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+}
+/* Limite em px: porcentagem de altura não resolve numa imagem dentro de grid (o logo saía cortado). */
+.port-banner__logo {
+  position: relative;
+  width: auto;
+  height: auto;
+  max-width: 60%;
+  max-height: 130px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.6));
+}
+.port-banner--logo-only .port-banner__logo {
+  max-height: 88px;
+}
+.store-port__head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.store-port__titles {
+  min-width: 0;
+}
+.store-port__name {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+.store-port__summary {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-strong);
+}
+.store-port__description {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.55;
+}
+.store-port__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.store-port__tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: var(--text);
+}
+.store-port__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.store-port__requirement {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 159, 10, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 159, 10, 0.25);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.store-port__requirement > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--orange);
+}
+/* Jogo gratuito: nada a providenciar, então informa em verde em vez de alertar. */
+.store-port__requirement--free {
+  background: rgba(48, 209, 88, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(48, 209, 88, 0.22);
+}
+.store-port__requirement--free > svg {
+  color: var(--green);
+}
+.store-port__requirement strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+.store-port__requirement-hint {
+  color: var(--muted);
+}
+
+.store-releases__source {
+  font-size: 12px;
+}
+.store-releases {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.store-release {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 0;
+  border-top: 1px solid var(--separator);
+}
+.store-release:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.store-release__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.store-release__name {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.store-release__tag {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.store-release__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.store-release__missing {
+  color: var(--orange);
+}
+.store-release__notes summary {
+  width: fit-content;
+  font-size: 12px;
+  color: var(--accent-hover);
+  cursor: default;
+}
+.store-release__notes pre {
+  max-height: 260px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+.store-release__skeleton {
+  height: 44px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+}

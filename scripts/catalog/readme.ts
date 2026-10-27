@@ -56,6 +56,6 @@ export function portsSection(ports: StorePort[]): string {
 /** Preenche o modelo do README com o total e a lista de ports do catalog.json. */
 export function renderReadme(template: string, catalogJson: string): string {
   if (!template.includes(PORTS_MARK) || !template.includes(TOTAL_MARK)) throw new Error('modelo do README sem as marcas da lista de ports');
-  const { ports } = parseCatalog(JSON.parse(catalogJson.replace(/^﻿/, '')));
+  const { ports } = parseCatalog(JSON.parse(catalogJson.replace(/^\uFEFF/, '')));
   return template.replaceAll(TOTAL_MARK, String(ports.length)).replace(PORTS_MARK, portsSection(ports));
 }

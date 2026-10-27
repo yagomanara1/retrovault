@@ -1,0 +1,147 @@
+/* Conquistas do RetroAchievements. */
+
+/* ---------- Conquistas ---------- */
+
+.ach-summary {
+  background: linear-gradient(90deg, rgba(229, 177, 67, 0.08), transparent);
+  border: 1px solid rgba(229, 177, 67, 0.25);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ach-summary__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.ach-summary__headline {
+  margin: 0;
+  font-size: 15px;
+}
+.ach-summary__headline strong {
+  color: var(--text-strong);
+}
+.ach-summary__stats {
+  display: flex;
+  gap: 32px;
+  margin: 0;
+}
+.ach-summary__stats dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+.ach-summary__stats dd {
+  margin: 0;
+  color: var(--text-strong);
+  font-weight: 600;
+}
+.ach-summary__badges {
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex-wrap: wrap;
+}
+.ach-summary__badges img {
+  border-radius: var(--radius);
+  border: 1px solid rgba(229, 177, 67, 0.4);
+}
+
+.achievement-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.achievement {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--row);
+  transition: background 0.12s;
+}
+.achievement:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.achievement--unlocked {
+  background: linear-gradient(90deg, rgba(229, 177, 67, 0.1), rgba(255, 255, 255, 0.03) 40%);
+}
+.achievement__badge {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius);
+}
+.achievement--locked .achievement__badge {
+  opacity: 0.6;
+}
+.achievement__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.achievement__title {
+  font-size: 15px;
+}
+.achievement--locked .achievement__title {
+  color: var(--text);
+}
+.achievement__desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.achievement__tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.achievement__tags:empty {
+  display: none;
+}
+.achievement__rarity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.achievement__rarity .progress {
+  max-width: 220px;
+}
+.achievement__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  text-align: right;
+  font-size: 12px;
+}
+.achievement__points {
+  font-weight: 700;
+  color: var(--gold);
+  font-size: 13px;
+}
+.achievement__date {
+  color: var(--muted);
+}
+.achievement__date time {
+  display: block;
+  color: var(--text);
+}
+.achievement__locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}

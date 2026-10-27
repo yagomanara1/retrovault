@@ -1,0 +1,195 @@
+/* Perfil e complementos das telas em cascata. */
+
+/* ---------- Perfil ---------- */
+
+.profile-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(120deg, rgba(10, 132, 255, 0.14), rgba(255, 255, 255, 0.03) 60%);
+  flex-wrap: wrap;
+}
+.profile-header__avatar {
+  border-radius: var(--radius);
+  border: 2px solid var(--accent);
+}
+.profile-header__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 220px;
+}
+.profile-header__info h1 {
+  font-size: 28px;
+}
+.profile-header__info p {
+  margin: 0;
+}
+.profile-header__motto {
+  font-style: italic;
+}
+.profile-header__presence {
+  color: var(--play-1);
+  font-size: 13px;
+}
+.profile-header__stats {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 12px 28px;
+  margin: 0;
+}
+.profile-header__stats dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+.profile-header__stats dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.profile__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.completion-list,
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.completion-row {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  background: var(--row);
+}
+.completion-row:hover {
+  background: var(--panel-hover);
+}
+.completion-row img {
+  border-radius: 3px;
+}
+.completion-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.completion-row__title {
+  color: var(--text-strong);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.completion-row__meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.completion-row__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.recent-item {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--row);
+}
+.recent-item img {
+  border-radius: 3px;
+}
+.recent-item__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.recent-item__title {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+.recent-item__desc {
+  font-size: 12px;
+  color: var(--muted);
+}
+.recent-item__game {
+  font-size: 12px;
+  text-decoration: none;
+}
+.recent-item__game:hover {
+  text-decoration: underline;
+}
+.recent-item__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ra-game-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+.ra-game-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+/* ---------- Cascata: complementos das telas ---------- */
+
+.cascade-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  width: 64px;
+}
+.cascade-progress strong {
+  font-size: 15px;
+}
+.cascade__item--active .progress {
+  background: rgba(11, 13, 18, 0.15);
+}
+.cascade-panel__link {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  text-decoration: none;
+}
+.cascade-panel__link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+.cascade__panel > .panel:first-child,
+.cascade__panel > .cascade-panel__link + .panel {
+  margin-top: 0;
+}

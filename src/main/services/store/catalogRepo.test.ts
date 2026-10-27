@@ -46,7 +46,7 @@ describe('catalog.schema.json (editor do repositório do catálogo)', () => {
       cache,
       github: {} as GitHubClient,
       remoteUrl: () => 'https://raw.githubusercontent.com/eu/retrovault-catalog/main/catalog.json',
-      fetchFn: (async () => new Response(`﻿${exported}`, { status: 200, headers: { 'content-type': 'text/plain' } })) as FetchFn,
+      fetchFn: (async () => new Response(`\uFEFF${exported}`, { status: 200, headers: { 'content-type': 'text/plain' } })) as FetchFn,
     });
     const result = await remote.testRemote('https://raw.githubusercontent.com/eu/retrovault-catalog/main/catalog.json');
     expect(result).toEqual({ ports: SEED_CATALOG.ports.length, skipped: [] });

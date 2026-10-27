@@ -61,6 +61,8 @@ const normalize = (s: string) =>
 
 /** Nome de pasta seguro no Windows. */
 export function safeFolderName(title: string): string {
+  // Caracteres de controle (\u0000-\u001f) são proibidos em nomes do Windows: tirá-los é o objetivo.
+  // eslint-disable-next-line no-control-regex
   const cleaned = title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
   return (cleaned || 'Jogo').slice(0, 80);
 }

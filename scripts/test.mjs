@@ -1,6 +1,6 @@
-// Roda o Vitest dentro do runtime Node do Electron (ELECTRON_RUN_AS_NODE=1).
-// Motivo: o better-sqlite3 é recompilado para o ABI do Electron no postinstall e não carrega no
-// Node do sistema. Uso: `npm test` (uma vez) ou `npm run test:watch`.
+// Roda o Vitest dentro do runtime Node do Electron (ELECTRON_RUN_AS_NODE=1): os testes usam a mesma
+// versão do Node e o mesmo binário do better-sqlite3 que vão no app. Uso: `npm test` (uma vez) ou
+// `npm run test:watch`.
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';

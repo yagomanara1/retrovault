@@ -1,0 +1,241 @@
+/* Categorias. */
+
+/* ---------- Categorias ---------- */
+
+/* Ícone de categoria: quadrado arredondado com a cor do console e volume no estilo macOS. */
+.category-icon {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #fff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 55%),
+    var(--icon-color);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.icon-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  margin-top: 4px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+}
+.icon-picker__option {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 9px;
+  transition: background 0.12s;
+}
+.icon-picker__option:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.icon-picker__option--selected {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.icon-picker__option:has(input:focus-visible) {
+  box-shadow: var(--focus);
+}
+.icon-picker__auto-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.category-manager__icon {
+  border: 0;
+  padding: 2px;
+  border-radius: 10px;
+  background: none;
+  transition: transform 0.12s;
+}
+.category-manager__icon:hover {
+  transform: scale(1.06);
+}
+.category-manager__row .category-manager__name,
+.category-manager__row .category-manager__edit {
+  flex: 1;
+}
+
+.category-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.category-filter__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  transition: background 0.12s, color 0.12s;
+}
+/* Com ícone, ele encosta na borda arredondada (como os filtros do Finder). */
+.category-filter__chip:has(.category-icon) {
+  padding-left: 5px;
+}
+.category-filter__chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-strong);
+}
+.category-filter__chip--active,
+.category-filter__chip--active:hover {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--highlight);
+}
+.category-filter__count {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.hero__categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: -4px 0 0;
+  padding: 0;
+}
+.hero__category {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(12px);
+  color: var(--text-strong);
+  font-size: 11.5px;
+  font-weight: 550;
+  text-decoration: none;
+}
+.hero__category:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.category-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.category-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.category-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 7px;
+}
+.category-picker__item:hover {
+  background: var(--row-hover);
+}
+.category-picker__item input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.category-picker__name {
+  flex: 1;
+  color: var(--text-strong);
+}
+.category-picker__count {
+  font-size: 12px;
+}
+.category-picker__new {
+  display: flex;
+  gap: 8px;
+}
+
+.category-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.category-manager__auto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  border: 1px solid rgba(10, 132, 255, 0.35);
+}
+.category-manager__auto > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 280px;
+  font-size: 12.5px;
+}
+.category-manager__auto strong {
+  color: var(--text-strong);
+  font-size: 13px;
+}
+.category-manager__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.category-manager__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 9px;
+  background: var(--row);
+}
+.category-manager__name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.category-manager__name strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+.category-manager__name span {
+  font-size: 12px;
+}
+.category-manager__edit {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+.category-manager__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}

@@ -71,6 +71,7 @@ export const portSchema = z.object({
     .string()
     // Aceita nomes com acento e símbolos (ex.: "Crash™ Team Racing Nitro-Fueled.exe"); só os caracteres
     // proibidos no Windows ficam de fora. O caminho ainda é conferido por safeEntryPath ao instalar.
+    // eslint-disable-next-line no-control-regex -- recusar caracteres de controle é o objetivo
     .regex(/^(?!.*\.\.)(?![\\/])(?![A-Za-z]:)[^<>:"|?*\u0000-\u001f]{1,200}\.exe$/i, 'executável inválido')
     .optional(),
   requires: z.object({

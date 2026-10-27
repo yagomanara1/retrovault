@@ -1,0 +1,533 @@
+/* Mods (GameBanana). */
+
+/* ---------- Mods (GameBanana) ---------- */
+.mods {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.mods .panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.mods__note,
+.mods__credit {
+  margin: 0;
+  font-size: 12.5px;
+}
+.mods__toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mods__search {
+  flex: 1 1 220px;
+}
+.mods__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+.mods__skeleton {
+  height: 170px;
+  border-radius: 12px;
+}
+.mods__more {
+  display: flex;
+  justify-content: center;
+}
+.mod-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 0 0 10px;
+  border: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--separator);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.mod-card:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 0 0 1px var(--accent), var(--shadow);
+}
+.mod-card:focus-visible {
+  box-shadow: var(--focus);
+}
+/* Moldura fixa 16:10: imagens altas são recortadas (a imagem não pode esticar o cartão). */
+.mod-card__image {
+  position: relative;
+  display: block;
+  /* Largura explícita: dentro do botão a proporção não teria base e a altura cairia a zero. */
+  width: 100%;
+  flex-shrink: 0;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: #0c0f15;
+}
+.mod-card__image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mod-card__name {
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mod-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.mod-card__likes {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.mods__installed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mods__installed li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.mods__installed li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+}
+.mods__installed .muted {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mod-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mod-detail__gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mod-detail__image {
+  width: 100%;
+  max-height: 340px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #0c0f15;
+}
+.mod-detail__thumbs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+.mod-detail__thumbs button {
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  opacity: 0.6;
+  cursor: pointer;
+  background: none;
+}
+.mod-detail__thumbs button[aria-pressed='true'],
+.mod-detail__thumbs button:hover {
+  opacity: 1;
+}
+.mod-detail__thumbs img {
+  display: block;
+  width: 84px;
+  height: 52px;
+  object-fit: cover;
+}
+.mod-detail__stats {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  font-size: 12.5px;
+}
+.mod-detail__stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mod-detail__text {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mod-detail__files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mod-detail__file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.mod-detail__file > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.mod-detail__file .muted {
+  font-size: 12px;
+}
+.mod-detail__progress {
+  width: 140px;
+}
+
+/* Acima da cascata: o título é só para leitores de tela; aqui ficam "Adicionar do GitHub" e "Atualizar tudo". */
+.store__header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+/* Crédito da seleção, à esquerda dos botões (só texto e link, sem marca). */
+.store__credit {
+  margin: 0 auto 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.store__credit-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.store__credit-link:hover,
+.store__credit-link:focus-visible {
+  color: var(--text-strong);
+}
+/* Port adicionado pelo usuário. */
+.store-port__custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px var(--separator);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.custom-port__found {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.custom-port__found strong {
+  color: var(--text-strong);
+}
+.custom-port__warning {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 159, 10, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 159, 10, 0.25);
+  font-size: 12.5px;
+  color: var(--text);
+}
+.custom-port__warning > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--orange);
+}
+.store-pill {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+.store-pill--latest {
+  background: rgba(48, 209, 88, 0.16);
+  color: var(--green);
+}
+
+.store-pill--installed {
+  background: rgba(10, 132, 255, 0.18);
+  color: var(--accent-hover);
+}
+.store-pill--update {
+  background: rgba(255, 159, 10, 0.18);
+  color: var(--orange);
+}
+.cascade__item--active .store-pill--update {
+  background: rgba(255, 159, 10, 0.2);
+  color: #a35f00;
+}
+.store-release__action {
+  margin-left: auto;
+}
+.cascade__item--active .store-pill--installed {
+  background: rgba(10, 132, 255, 0.14);
+  color: #0a64c8;
+}
+
+/* Instalação de port: progresso, estado instalado e confirmação */
+.port-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.port-progress__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.port-progress__label {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+/* Fases sem total conhecido: faixa que corre (só transform, GPU). */
+.port-progress__indeterminate {
+  position: relative;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.port-progress__indeterminate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: port-indeterminate 1.1s var(--ease-out) infinite;
+}
+@keyframes port-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.port-installed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.port-installed svg {
+  color: var(--green);
+}
+.port-installed__update {
+  color: var(--accent-hover);
+}
+/* Assistente de ROM (port instalado) */
+.rom-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.rom-panel__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+.rom-panel__state {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  line-height: 1.45;
+}
+.rom-panel__state svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.rom-panel__state--ok {
+  color: var(--text-strong);
+}
+.rom-panel__state--ok svg {
+  color: var(--green);
+}
+.rom-panel__state--missing svg {
+  color: var(--orange);
+}
+.rom-panel__instructions {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.rom-panel__file {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+}
+.rom-panel__file code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  word-break: break-all;
+  color: var(--text-strong);
+}
+.rom-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rom-panel__error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #ff7a72;
+}
+.rom-panel__skeleton {
+  height: 64px;
+  border-radius: 10px;
+}
+.port-uninstall__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+/* Loja de ports (Configurações) */
+.settings-store__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-strong);
+}
+.settings-store__status svg {
+  color: var(--green);
+}
+.github-steps code,
+.panel .muted code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* Conta do GitHub (Configurações) */
+.github-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.github-status__account {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-strong);
+}
+.github-status__account svg {
+  color: var(--green);
+}
+.github-status__skeleton {
+  height: 72px;
+  border-radius: 12px;
+}
+.github-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding-left: 20px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.github-steps strong {
+  color: var(--text-strong);
+}
+.completion-row__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  color: var(--muted);
+}

@@ -1,0 +1,524 @@
+/* Tela inicial estilo PS5. */
+
+/* ---------- Tela inicial (estilo PlayStation 5) ---------- */
+
+.library-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -8px;
+}
+
+.ps-home {
+  position: relative;
+  height: 100%;
+  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--toolbar-height) + 4px) 44px 40px;
+  overflow: hidden;
+  color: #fff;
+  isolation: isolate;
+  /* Interface de console: cliques e toques duplos não selecionam texto. */
+  user-select: none;
+}
+
+.ps-home__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: #0b0d12;
+}
+.ps-home__layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 30%;
+  /* Transição cruzada longa: a arte nova surge por cima da anterior com um leve "zoom out". */
+  animation: ps-backdrop-in 0.9s var(--ease-out) both;
+}
+@keyframes ps-backdrop-in {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+/* Sem arte de fundo: a capa ampliada e desfocada (como o PS5 faz com jogos sem tema). */
+.ps-home__layer--soft {
+  inset: -60px;
+  filter: blur(46px) saturate(1.3) brightness(0.55);
+}
+@keyframes ps-fade {
+  from {
+    opacity: 0;
+    transform: scale(1.025);
+  }
+}
+.ps-home__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(5, 8, 14, 0.78) 0%, rgba(5, 8, 14, 0.35) 45%, rgba(5, 8, 14, 0) 70%),
+    linear-gradient(0deg, rgba(5, 8, 14, 0.85) 0%, rgba(5, 8, 14, 0) 45%),
+    linear-gradient(180deg, rgba(5, 8, 14, 0.55) 0%, rgba(5, 8, 14, 0) 30%);
+}
+
+.ps-home__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  /* A linha superior divide espaço com a barra de título (‹ › e botões da janela). */
+  margin-top: -6px;
+}
+/* Uma linha só: com muitas categorias de console, a faixa rola (roda do mouse ou arrastando) em vez de
+   quebrar e empurrar o menu para baixo. O esmaecimento na direita avisa que há mais abas. */
+.ps-home__tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 22px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  padding-right: 24px;
+}
+.ps-home__tabs::-webkit-scrollbar {
+  display: none;
+}
+.ps-home__tabs > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.ps-home__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.58);
+  font: inherit;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: color 0.15s;
+}
+.ps-home__tab:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+.ps-home__tab--active {
+  color: #fff;
+  font-weight: 650;
+}
+/* Menu do canto superior direito (substitui a barra lateral na tela inicial). */
+.ps-menu {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+/* Número no canto do botão (ex.: atualizações de ports na Loja). */
+.ps-menu__badge {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--window);
+  pointer-events: none;
+}
+.ps-menu__btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.88);
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+.ps-menu__btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+/* Foco como no PS5: o ícone vira um círculo branco. */
+.ps-menu__btn:focus-visible {
+  background: #fff;
+  color: #0b0d12;
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.4);
+  transform: scale(1.06);
+}
+.ps-menu__avatar {
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.ps-menu__avatar img {
+  border-radius: 50%;
+}
+.ps-menu__avatar:hover,
+.ps-menu__avatar:focus-visible {
+  box-shadow: 0 0 0 3px #fff, 0 0 18px rgba(255, 255, 255, 0.4);
+  transform: scale(1.06);
+}
+.ps-menu__clock {
+  margin-left: 14px;
+  font-size: 21px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.ps-menu__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  width: min(280px, 26vw);
+  padding: 0 6px 0 12px;
+  border-radius: 999px;
+  background: rgba(20, 22, 28, 0.66);
+  backdrop-filter: blur(16px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  animation: ps-fade 0.2s ease both;
+}
+.ps-menu__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  user-select: text;
+}
+.ps-menu__search input:focus-visible {
+  box-shadow: none;
+}
+.ps-menu__search input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+.ps-menu__search input::-webkit-search-cancel-button {
+  display: none; /* já existe o botão de fechar */
+}
+.ps-menu__search-close {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.ps-home__empty {
+  margin: 40px 0 0;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+/* Fileira de blocos: o selecionado cresce, ganha contorno branco e mostra o nome embaixo. */
+.ps-home__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 18px -44px 0;
+  padding: 10px 44px 46px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ps-home__row::-webkit-scrollbar {
+  display: none;
+}
+/*
+ * Animação do bloco selecionado, sem "trancos":
+ * - o botão tem sempre o tamanho grande (136px) e é reduzido por transform: scale (GPU, sem
+ *   reamostrar a imagem a cada quadro, que era o que deixava a animação dura);
+ * - só a caixa externa (.ps-tile) muda de largura, para empurrar os vizinhos;
+ * - contorno e brilho ficam prontos numa camada (::after) e só a opacidade muda.
+ */
+.ps-tile {
+  --tile-small: 92px;
+  --tile-big: 136px;
+  position: relative;
+  flex-shrink: 0;
+  width: var(--tile-small);
+  height: var(--tile-small);
+  transition: width var(--dur-med) var(--ease-out), height var(--dur-med) var(--ease-out);
+}
+.ps-tile--selected {
+  width: var(--tile-big);
+  height: var(--tile-big);
+}
+.ps-tile__button {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: var(--tile-big);
+  height: var(--tile-big);
+  padding: 0;
+  border: 0;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  transform-origin: 0 0;
+  transform: scale(calc(92 / 136));
+  transition: transform var(--dur-med) var(--ease-spring);
+}
+/* A imagem leva os cantos arredondados (o botão não corta, para o contorno aparecer por fora). */
+.ps-tile__button img,
+.ps-tile__initials {
+  border-radius: inherit;
+}
+.ps-tile__button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ps-tile__button::before,
+.ps-tile__button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-med) var(--ease-out);
+}
+/* Passar o mouse: contorno fino e o bloco "respira" um pouco. */
+.ps-tile__button::before {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.55);
+}
+.ps-tile:not(.ps-tile--selected) .ps-tile__button:hover {
+  transform: scale(calc(98 / 136));
+}
+.ps-tile:not(.ps-tile--selected) .ps-tile__button:hover::before {
+  opacity: 1;
+}
+/* Selecionado: contorno branco + brilho + sombra profunda. */
+.ps-tile__button::after {
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 28px rgba(255, 255, 255, 0.35),
+    0 16px 34px rgba(0, 0, 0, 0.55);
+}
+.ps-tile--selected .ps-tile__button {
+  transform: scale(1);
+}
+.ps-tile--selected .ps-tile__button::after {
+  opacity: 1;
+}
+.ps-tile__button:focus-visible {
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 0 7px rgba(10, 132, 255, 0.8);
+}
+.ps-tile__initials {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: 30px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+}
+.ps-tile__running {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5), 0 0 10px var(--green);
+}
+.ps-tile__caption {
+  position: absolute;
+  left: 2px;
+  top: calc(100% + 10px);
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 500;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  animation: ps-rise var(--dur-med) var(--ease-out) 80ms both;
+}
+/* Entrada dos textos e cartões a cada troca de jogo: sobem um pouco enquanto aparecem. */
+@keyframes ps-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.ps-home__swap {
+  display: block;
+  animation: ps-rise var(--dur-med) var(--ease-out) both;
+}
+.ps-home__swap--late {
+  animation-delay: 60ms;
+}
+
+.ps-home__bottom {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+}
+.ps-home__info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  max-width: 640px;
+}
+.ps-home__title {
+  font-size: clamp(34px, 4.6vw, 60px);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  color: #fff;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
+}
+.ps-home__subtitle {
+  margin: 0;
+  font-size: 17px;
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+.ps-home__actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+/* PS5: pílula escura translúcida; em foco/hover fica branca com texto escuro. */
+.ps-home__play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 220px;
+  height: 52px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(20, 22, 28, 0.62);
+  backdrop-filter: blur(16px);
+  color: #fff;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  transition:
+    background var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    transform var(--dur-med) var(--ease-spring);
+}
+.ps-home__play:hover:not(:disabled),
+.ps-home__play:focus-visible {
+  background: #fff;
+  color: #0b0d12;
+  transform: scale(1.03);
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.35);
+}
+.ps-home__play:disabled {
+  opacity: 0.7;
+}
+.ps-home__more {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(20, 22, 28, 0.62);
+  backdrop-filter: blur(16px);
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 1px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  transition: background 0.15s, color 0.15s;
+}
+.ps-home__more:hover,
+.ps-home__more:focus-visible {
+  background: #fff;
+  color: #0b0d12;
+}
+.ps-home__hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.ps-home__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 248px;
+  flex-shrink: 0;
+}
+.ps-card {
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(14, 16, 22, 0.6);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  animation: ps-rise var(--dur-slow) var(--ease-out) both;
+}
+.ps-card + .ps-card {
+  animation-delay: 70ms;
+}
+.ps-card--cover img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  max-height: 300px;
+  object-fit: cover;
+}
+.ps-card--trophies {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+}
+.ps-card--trophies > svg {
+  color: rgba(255, 255, 255, 0.85);
+  flex-shrink: 0;
+}
+.ps-card--trophies dl {
+  display: flex;
+  gap: 22px;
+  margin: 0;
+}
+.ps-card--trophies dt {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.ps-card--trophies dd {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+@media (max-height: 760px) {
+  .ps-card--cover {
+    display: none; /* janela baixa: o cartão de troféus continua, a capa sai */
+  }
+}

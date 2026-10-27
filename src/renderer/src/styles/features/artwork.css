@@ -1,0 +1,277 @@
+/* Arte: editar, buscar online, enquadrar e vincular jogo. */
+
+/* ---------- Editar arte ---------- */
+
+.artwork-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 20px;
+}
+.artwork-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.artwork-slot__title {
+  font-size: 13px;
+  color: var(--muted);
+}
+.artwork-slot__preview {
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border);
+}
+.artwork-slot__preview[aria-busy='true'] {
+  opacity: 0.5;
+}
+.artwork-slot__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+.artwork-preview__background {
+  aspect-ratio: 16 / 7;
+  background-size: cover;
+  background-position: center;
+}
+.artwork-slot--background .artwork-slot__preview {
+  aspect-ratio: 16 / 7;
+}
+.artwork-preview__background--empty,
+.artwork-preview__icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 12px;
+}
+.artwork-preview__icon {
+  aspect-ratio: 1;
+}
+.artwork-preview__icon img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+}
+
+/* ---------- Busca de arte online (SteamGridDB) ---------- */
+.art-search {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--separator);
+}
+.art-search--setup {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.art-search--setup strong {
+  color: var(--text-strong);
+}
+.art-search__form {
+  display: flex;
+  gap: 8px;
+}
+.art-search__form .input {
+  flex: 1;
+}
+.art-search__match {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.art-search__match select {
+  flex: 1;
+}
+.art-search__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.art-search__grid--cover {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+.art-search__grid--background {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.art-search__grid--icon {
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+}
+.art-search__option {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0c0f15;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.art-search__option:hover:not(:disabled) {
+  transform: scale(1.04);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.art-search__option:focus-visible {
+  box-shadow: var(--focus);
+}
+.art-search__option:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+.art-search__option img {
+  display: block;
+  width: 100%;
+  object-fit: cover;
+}
+.art-search__grid--cover .art-search__option img {
+  aspect-ratio: 2 / 3;
+}
+.art-search__grid--background .art-search__option img {
+  aspect-ratio: 96 / 31;
+}
+.art-search__grid--icon .art-search__option img {
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+.art-search__applying {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  color: #fff;
+}
+
+/* ---------- Editor de enquadramento ---------- */
+.framing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.framing__stage {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.04) 0% 25%, transparent 0% 50%) 0 0 / 16px 16px;
+}
+.framing__canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  touch-action: none;
+}
+.framing__canvas--draggable {
+  cursor: grab;
+}
+.framing__canvas--draggable:active {
+  cursor: grabbing;
+}
+.framing__canvas:focus-visible {
+  outline: none;
+  box-shadow: var(--focus), var(--shadow);
+}
+.framing__zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(320px, 100%);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.framing__zoom input {
+  flex: 1;
+}
+.framing__error {
+  max-width: 320px;
+  text-align: center;
+  color: #ff7a72;
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .artwork-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .artwork-slot--background {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}
+
+/* ---------- Vincular jogo ---------- */
+
+.search-results {
+  min-height: 120px;
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+.search-results__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.search-result {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.search-result:hover:not(:disabled) {
+  background: var(--panel-hover);
+}
+.search-result[aria-current='true'] {
+  outline: 1px solid var(--accent);
+}
+.search-result img {
+  border-radius: 3px;
+}
+.search-result__title {
+  color: var(--text-strong);
+}
+.search-result__meta {
+  font-size: 12px;
+  color: var(--muted);
+}

@@ -23,7 +23,7 @@ if (Buffer.byteLength(text) > MAX_CATALOG_BYTES) fail('catálogo grande demais (
 let raw: unknown;
 try {
   // Editores do Windows às vezes gravam a marca BOM no começo; o app a ignora, então aqui também.
-  raw = JSON.parse(text.replace(/^﻿/, ''));
+  raw = JSON.parse(text.replace(/^\uFEFF/, ''));
 } catch (err) {
   fail(`JSON inválido: ${(err as Error).message}`);
 }

@@ -1,0 +1,63 @@
+/* Troféus: visão geral. */
+
+/* ---------- Troféus: visão geral ---------- */
+
+.trophy-level {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 3px solid var(--gold);
+  background: radial-gradient(circle at 30% 30%, var(--gold-soft), transparent 70%);
+}
+.trophy-level__number {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-strong);
+}
+.trophy-level__label {
+  font-size: 11px;
+  color: var(--gold);
+}
+.trophy-profile .profile-header__info {
+  gap: 8px;
+}
+.trophy-profile__stats {
+  grid-template-columns: repeat(4, auto);
+}
+.trophy-profile__stats dt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.trophy-profile__stats small {
+  font-size: 13px;
+  font-weight: 400;
+}
+.trophy-games__header {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.trophy-game__grades {
+  display: flex;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+}
+.trophy-game__grades li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.trophy-game__percent {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-strong);
+}

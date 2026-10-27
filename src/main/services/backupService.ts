@@ -105,6 +105,8 @@ export class BackupService {
   async referencedArtwork(): Promise<string[]> {
     const urls: string[] = [];
     for (const { name } of await this.list()) {
+      // A leitura do SQLite é síncrona: entre um backup e outro, o main atende o IPC da janela.
+      await new Promise((resolve) => setImmediate(resolve));
       let db: Database.Database | null = null;
       try {
         db = new Database(path.join(this.dir, name), { readonly: true, fileMustExist: true });

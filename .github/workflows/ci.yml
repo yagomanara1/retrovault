@@ -1,0 +1,39 @@
+# Typecheck, lint e testes em todo push na main e em todo pull request.
+# No Windows: o app é só para Windows, e parte dos testes usa caminhos C:\..., PowerShell e o tar.exe do sistema.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Só leitura: o CI não publica nada nem mexe no repositório.
+permissions:
+  contents: read
+
+# Um push novo cancela a execução anterior do mesmo branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Typecheck, lint e testes (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # Sem compilar nada: o better-sqlite3 traz binário pronto (o script de instalação dele é negado em allowScripts).
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm test

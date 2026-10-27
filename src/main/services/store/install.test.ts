@@ -464,14 +464,14 @@ describe('InstallService', () => {
   });
 
   it('cancelar no meio do download não deixa nada para trás', async () => {
-    let service!: InstallService;
+    // O download lento cancela a própria instalação (service só é lido quando o download começa).
     const slow: FetchFn = async (_url, init) => {
       const res = streamResponse(ZIP, undefined, 64);
       queueMicrotask(() => service.cancel('demo'));
       return init.signal.aborted ? Promise.reject(new Error('abortado')) : res;
     };
     const ctx = setup([release('v1')], { fetchFn: slow });
-    service = ctx.service;
+    const service: InstallService = ctx.service;
     await expect(service.install('demo')).rejects.toMatchObject({ code: 'CANCELLED' });
     expect(ctx.repo.get('demo')).toBeNull();
     expect(ctx.gameRepo.list()).toHaveLength(0);

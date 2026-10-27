@@ -278,8 +278,11 @@ export interface EventContract {
   'trophies:changed': { gameId: number };
   /** Jogo encontrado sozinho em outra pasta (reparo ao iniciar). */
   'games:relocated': { gameId: number; title: string; path: string };
-  /** O jogo mudou no main (ex.: arte do dump aplicada); o renderer só recarrega. */
-  'games:changed': { gameId: number };
+  /**
+   * Jogos mudaram no main (ex.: arte do dump aplicada); o renderer só recarrega. Ids juntados no main:
+   * uma rajada de mudanças vira uma recarga só.
+   */
+  'games:changed': { gameIds: number[] };
   'library:scan-progress': ScanProgress;
   'library:add-progress': BatchAddProgress;
   /** Backup automático de save criado (ao fechar o jogo ou na verificação periódica). */

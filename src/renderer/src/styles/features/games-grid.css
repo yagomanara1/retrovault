@@ -1,0 +1,178 @@
+/* Grade de jogos da biblioteca. */
+
+/* ---------- Grid de jogos ---------- */
+
+.grid--games {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 26px 20px;
+}
+/*
+ * Bibliotecas grandes: cartão fora da tela não é desenhado (content-visibility). O tamanho reservado evita
+ * que a barra de rolagem pule; "auto" guarda o tamanho real depois do primeiro desenho. A contenção de
+ * pintura cortaria a capa levantada e a sombra do hover: overflow-clip-margin dá a folga.
+ */
+.grid--games > .game-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 170px auto 270px;
+  overflow-clip-margin: 72px;
+}
+.page__section + .page__section {
+  margin-top: 8px;
+}
+
+/* Como os álbuns do app Música: capa arredondada com sombra, texto abaixo, sem moldura. */
+.game-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius-lg);
+}
+/*
+ * Hover suave: só transform e opacity (a placa de vídeo anima sem redesenhar).
+ * A capa sobe, a imagem dentro dela aproxima de leve e uma sombra maior (camada pronta) aparece.
+ */
+.game-card .cover {
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.game-card .cover img {
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+/* Sombra de "levantado": mesma área da capa, só a opacidade muda. */
+.game-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
+  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.16);
+  opacity: 0;
+  transform: translateY(0);
+  transition: opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out);
+  pointer-events: none;
+}
+.game-card:hover .cover,
+.game-card:hover::before,
+.game-card:hover .game-card__badge {
+  transform: translateY(-6px);
+}
+.game-card:hover::before {
+  opacity: 1;
+}
+.game-card:hover .cover img {
+  transform: scale(1.05);
+}
+.game-card__title {
+  transition: color var(--dur-fast) ease;
+}
+.game-card:hover .game-card__title {
+  color: #fff;
+}
+.game-card:focus-visible {
+  box-shadow: none;
+}
+.game-card:focus-visible .cover {
+  box-shadow: var(--focus);
+}
+/* Movimento reduzido: a capa não se desloca (a sombra ainda aparece). */
+:root[data-motion='reduced'] .game-card:hover :is(.cover, .game-card__badge, .cover img),
+:root[data-motion='reduced'] .game-card:hover::before {
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) .game-card:hover :is(.cover, .game-card__badge, .cover img),
+  :root:not([data-motion]) .game-card:hover::before {
+    transform: none;
+  }
+}
+.game-card__badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  background: rgba(36, 138, 61, 0.92);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 999px;
+  transition: transform var(--dur-slow) var(--ease-out); /* sobe junto com a capa */
+}
+.game-card__badge--missing {
+  background: rgba(255, 159, 10, 0.92);
+  color: #1d1300;
+}
+.game-card__body {
+  padding: 0 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.game-card__title {
+  color: var(--text-strong);
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.game-card__meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.game-card__progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gold);
+  font-size: 11px;
+}
+
+.cover {
+  position: relative;
+  background: linear-gradient(160deg, #3a3a3c, #232325 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.cover--portrait {
+  aspect-ratio: 3 / 4;
+}
+.cover--square {
+  aspect-ratio: 1;
+  width: 120px;
+  border-radius: var(--radius);
+}
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Sem capa: ícone inteiro (qualquer proporção) sobre um fundo desfocado dele mesmo. */
+.cover__icon-backdrop {
+  position: absolute;
+  inset: -15%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(20px) brightness(0.55) saturate(1.2);
+}
+.cover img.cover__icon {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 8%;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
+}
+.cover__initials {
+  font-size: 36px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.35);
+}

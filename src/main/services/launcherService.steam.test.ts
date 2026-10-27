@@ -18,7 +18,8 @@ describe('LauncherService — jogos da Steam', () => {
   let exe: string;
 
   beforeEach(async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    // Relógio parado: os instantes dos snapshots não dependem de quanto a abertura levou de verdade.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'], now: new Date('2026-10-25T12:00:00Z') });
     gameDir = path.join(tmp(), 'Steam', 'steamapps', 'common', 'Jogo');
     exe = path.join(gameDir, 'bin', 'win64', 'jogo.exe');
     await makeTree(tmp(), { [path.relative(tmp(), exe)]: 'x' });

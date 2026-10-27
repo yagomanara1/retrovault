@@ -217,7 +217,9 @@ function CustomPortNotice({ port, installed }: { port: StorePort; installed: boo
   const { remove } = useCustomPorts();
   const toast = useToast();
   const [, setParams] = useSearchParams();
-  const busy = installed || !!useInstallProgress()[port.id];
+  // O hook roda sempre (as regras do React): dentro do || ele pularia quando o port já está instalado.
+  const installing = !!useInstallProgress()[port.id];
+  const busy = installed || installing;
   return (
     <div className="store-port__custom" role="note">
       <span>Adicionado por você · sem curadoria da Loja.</span>

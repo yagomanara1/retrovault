@@ -1,17 +1,36 @@
+import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useMatch } from 'react-router-dom';
 import { AmbientBackdrop } from './components/layout/AmbientBackdrop';
 import { AppUpdateBanner } from './components/layout/AppUpdateBanner';
 import { Titlebar } from './components/layout/Titlebar';
 import { TopMenu } from './components/layout/TopMenu';
+import { LoadingBlock, Skeleton } from './components/ui/States';
 import { useBridgeEvents } from './hooks/useBridgeEvents';
 import { useGames } from './hooks/queries';
 import { showsConsoleHome, useLibraryView } from './hooks/useLibraryView';
 import { GameDetailPage } from './pages/GameDetailPage';
 import { LibraryHome } from './pages/LibraryHome';
-import { ProfilePage } from './pages/ProfilePage';
-import { RaGamePage } from './pages/RaGamePage';
-import { SettingsPage } from './pages/SettingsPage';
-import { StorePage } from './pages/StorePage';
+
+// Telas que não aparecem na abertura vêm em pedaços separados: menos JavaScript para analisar ao abrir.
+const pages = {
+  profile: () => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+  raGame: () => import('./pages/RaGamePage').then((m) => ({ default: m.RaGamePage })),
+  settings: () => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+  store: () => import('./pages/StorePage').then((m) => ({ default: m.StorePage })),
+};
+const ProfilePage = lazy(pages.profile);
+const RaGamePage = lazy(pages.raGame);
+const SettingsPage = lazy(pages.settings);
+const StorePage = lazy(pages.store);
+
+/** Depois que a abertura termina, baixa os pedaços em segundo plano: a primeira visita a cada tela não espera. */
+function usePrefetchPages(): void {
+  useEffect(() => {
+    const load = () => Object.values(pages).forEach((page) => void page().catch(() => undefined));
+    const id = window.requestIdleCallback ? window.requestIdleCallback(load, { timeout: 3000 }) : window.setTimeout(load, 1500);
+    return () => (window.cancelIdleCallback ? window.cancelIdleCallback(id) : window.clearTimeout(id));
+  }, []);
+}
 
 const TITLES: Record<string, string> = {
   '/': 'Biblioteca',
@@ -26,6 +45,7 @@ const TITLES: Record<string, string> = {
  */
 export function App() {
   useBridgeEvents();
+  usePrefetchPages();
   const { pathname } = useLocation();
   const [view] = useLibraryView();
   const { data: games } = useGames();
@@ -53,15 +73,23 @@ export function App() {
           </>
         )}
         <main id="main" className={consoleHome ? 'app__content app__content--home' : 'app__content'} tabIndex={-1}>
-          <Routes>
-            <Route index element={<LibraryHome />} />
-            <Route path="game/:id" element={<GameDetailPage />} />
-            <Route path="profile" element={<ProfilePage />} />
-            <Route path="ra-game/:raGameId" element={<RaGamePage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="loja" element={<StorePage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense
+            fallback={
+              <LoadingBlock label="Carregando…">
+                <Skeleton className="skeleton--hero" />
+              </LoadingBlock>
+            }
+          >
+            <Routes>
+              <Route index element={<LibraryHome />} />
+              <Route path="game/:id" element={<GameDetailPage />} />
+              <Route path="profile" element={<ProfilePage />} />
+              <Route path="ra-game/:raGameId" element={<RaGamePage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="loja" element={<StorePage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </main>
         <AppUpdateBanner />
       </div>

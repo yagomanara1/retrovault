@@ -22,7 +22,7 @@ for (const file of files) if (!existsSync(file)) fail(`falta ${path.basename(fil
 
 // latest.yml é simples (gerado pelo electron-builder): basta ler os campos de primeiro nível.
 // BOM e quebras de linha do Windows, se alguém abriu e salvou o arquivo num editor.
-const yml = readFileSync(files[2], 'utf8').replace(/^﻿/, '').replace(/\r\n/g, '\n');
+const yml = readFileSync(files[2], 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
 const field = (name) => yml.match(new RegExp(`^${name}: '?([^'\\n]+)'?$`, 'm'))?.[1];
 if (field('version') !== version) fail(`latest.yml é da versão ${field('version')}, mas o package.json diz ${version}`);
 if (field('path') !== setup) fail(`latest.yml aponta para ${field('path')}, não para ${setup}`);

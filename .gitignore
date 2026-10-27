@@ -8,3 +8,6 @@ coverage/
 .env.*
 .DS_Store
 Thumbs.db
+
+# Regras pessoais do Claude Code (não vão para o GitHub)
+CLAUDE.md

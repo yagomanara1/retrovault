@@ -67,12 +67,15 @@ describe('vetores oficiais do rcheevos', () => {
     expect(await hashDisc(await write('nada.bin', genericFile(512)), 'sega-disc')).toBeNull();
   });
 
-  it('Nintendo DS (test_hash_nds) e com cabeçalho do SuperCard (test_hash_nds_supercard)', () => {
+  it('Nintendo DS (test_hash_nds) e com cabeçalho do SuperCard (test_hash_nds_supercard)', async () => {
     const rom = ndsFile(2, 1234567, 654321);
-    expect(hashNds(rom)).toBe('56b30c276cba4affa886bd38e8e34d7e');
+    expect(await hashNds(rom)).toBe('56b30c276cba4affa886bd38e8e34d7e');
     const superCard = Buffer.alloc(512);
     superCard.set([0x2e, 0x00, 0x00, 0xea]);
     superCard.set([0x44, 0x46, 0x96, 0x00], 0xb0);
-    expect(hashNds(Buffer.concat([superCard, rom]))).toBe('56b30c276cba4affa886bd38e8e34d7e');
+    expect(await hashNds(Buffer.concat([superCard, rom]))).toBe('56b30c276cba4affa886bd38e8e34d7e');
+    // Do arquivo, lendo só os trechos (o mesmo hash da referência).
+    expect(await hashRom(await write('jogo.nds', rom), ConsoleId.NDS)).toBe('56b30c276cba4affa886bd38e8e34d7e');
+    expect(await hashRom(await write('sc.nds', Buffer.concat([superCard, rom])), ConsoleId.NDS)).toBe('56b30c276cba4affa886bd38e8e34d7e');
   });
 });

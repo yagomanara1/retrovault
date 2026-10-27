@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-type Statement<P extends unknown[] | {} = unknown[], R = unknown> = Database.Statement<P, R>;
+type Statement<P extends unknown[] | object = unknown[], R = unknown> = Database.Statement<P, R>;
 import type { Trophy, TrophyGameSummary, TrophyGrade, TrophyOverview, TrophySet, TrophySource } from '@shared/types';
 import type { DB } from '../database';
 

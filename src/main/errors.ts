@@ -1,5 +1,8 @@
-import { ZodError } from 'zod';
+import { ZodError, config as zodConfig, locales as zodLocales } from 'zod';
 import type { ErrorCode, IpcError } from '@shared/ipc';
+
+// Mensagens padrão da validação (as que o schema não define) em português do Brasil.
+zodConfig(zodLocales.ptBR());
 
 export class AppError extends Error {
   constructor(

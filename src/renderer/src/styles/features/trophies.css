@@ -1,0 +1,270 @@
+/* Troféus locais. */
+
+/* ---------- Troféus locais ---------- */
+
+:root {
+  --grade-P: #9fc3e7;
+  --grade-G: #e5b143;
+  --grade-S: #c4cdd6;
+  --grade-B: #cd8a4f;
+}
+
+.grade {
+  display: inline-flex;
+  align-items: center;
+}
+.grade--P {
+  color: var(--grade-P);
+}
+.grade--G {
+  color: var(--grade-G);
+}
+.grade--S {
+  color: var(--grade-S);
+}
+.grade--B {
+  color: var(--grade-B);
+}
+
+.achievement-sources {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.achievement-sources--ra-first .source-card:first-child {
+  order: 2;
+}
+.source-card {
+  background: var(--card);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-lg);
+}
+.source-card code,
+.trophy-detection code,
+.panel code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.trophy-panel {
+  margin-top: 16px;
+}
+.trophy-panel__heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.trophy-panel__set-icon {
+  border-radius: var(--radius);
+  object-fit: cover;
+}
+.trophy-panel__subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+.trophy-panel__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.trophy-summary {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(90deg, rgba(159, 195, 231, 0.08), transparent);
+  border: 1px solid rgba(159, 195, 231, 0.2);
+}
+.trophy-summary__progress {
+  flex: 1;
+  min-width: 240px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 14px;
+}
+.trophy-summary__progress .muted {
+  grid-column: 2;
+  font-size: 12px;
+}
+.trophy-summary__percent {
+  grid-row: span 2;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+.trophy-summary__grades {
+  display: flex;
+  gap: 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.trophy-summary__grades li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.trophy-detection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+.trophy-detection > svg {
+  color: var(--accent);
+}
+.trophy-detection__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.toolbar__group .switch-row {
+  border-top: 0;
+  padding: 0;
+  gap: 10px;
+}
+
+.trophy-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.trophy {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--row);
+  transition: background 0.12s;
+}
+.trophy:hover {
+  background: var(--row-hover);
+}
+/* Obtido: realce interno na cor do grau (respeita os cantos arredondados, ao contrário de border-left). */
+.trophy--unlocked.trophy--P {
+  box-shadow: inset 3px 0 0 var(--grade-P);
+}
+.trophy--unlocked.trophy--G {
+  box-shadow: inset 3px 0 0 var(--grade-G);
+}
+.trophy--unlocked.trophy--S {
+  box-shadow: inset 3px 0 0 var(--grade-S);
+}
+.trophy--unlocked.trophy--B {
+  box-shadow: inset 3px 0 0 var(--grade-B);
+}
+.trophy__icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--muted);
+}
+.trophy__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.trophy--locked .trophy__icon img {
+  filter: grayscale(1) brightness(0.55);
+}
+.trophy__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trophy__title {
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.trophy--locked .trophy__title {
+  color: var(--text);
+}
+.trophy__detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.trophy__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 12px;
+  text-align: right;
+}
+.trophy__date {
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.trophy__date time {
+  color: var(--text);
+}
+.trophy__locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+.trophy__actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.trophy:hover .trophy__actions,
+.trophy__actions:focus-within {
+  opacity: 1;
+}
+
+@media (max-width: 900px) {
+  .achievement-sources {
+    grid-template-columns: 1fr;
+  }
+  .trophy {
+    grid-template-columns: 48px 1fr;
+  }
+  .trophy__icon {
+    width: 48px;
+    height: 48px;
+  }
+  .trophy__side {
+    grid-column: 2;
+    align-items: flex-start;
+    text-align: left;
+  }
+}

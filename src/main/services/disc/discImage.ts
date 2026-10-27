@@ -118,7 +118,7 @@ const TRACK_MODES: Record<string, { sectorSize: number; dataOffset: number }> = 
 export function parseCue(text: string, cueDir: string): Track | null {
   let file: string | null = null;
   let mode: string | null = null;
-  for (const raw of text.replace(/^﻿/, '').split(/\r?\n/)) {
+  for (const raw of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
     const line = raw.trim();
     const fileMatch = line.match(/^FILE\s+(?:"([^"]+)"|(\S+))/i);
     if (fileMatch) {
@@ -144,7 +144,7 @@ export function parseCue(text: string, cueDir: string): Track | null {
 /** Primeiro disco de um .m3u (lista de discos de um jogo). */
 export function parseM3u(text: string, m3uDir: string): string | null {
   const first = text
-    .replace(/^﻿/, '')
+    .replace(/^\uFEFF/, '')
     .split(/\r?\n/)
     .map((l) => l.trim())
     .find((l) => l && !l.startsWith('#'));

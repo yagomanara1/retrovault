@@ -1,5 +1,8 @@
 # RetroVault
 
+[![CI](https://github.com/yagomanara1/retrovault/actions/workflows/ci.yml/badge.svg)](https://github.com/yagomanara1/retrovault/actions/workflows/ci.yml)
+[![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)](LICENSE)
+
 Launcher para Windows no estilo dos consoles. Junta numa biblioteca só os seus jogos de PC, ports, ROMs de
 emuladores e os jogos das lojas que você já tem (Steam, Epic, GOG…), com conquistas do RetroAchievements,
 troféus, cofre de saves na nuvem e uma **Loja de ports** de código aberto.
@@ -171,7 +174,8 @@ O RetroVault é código aberto, sob a [licença MIT](LICENSE): você pode ler, u
   cada recurso e as decisões tomadas). **Publicar uma versão:** [docs/PUBLICAR.md](docs/PUBLICAR.md).
 - **Tecnologias:** Electron, React e TypeScript, com SQLite e testes automáticos (`npm test`).
 - **Contribuir:** abra uma [issue](https://github.com/yagomanara1/retrovault/issues) para conversar sobre a ideia
-  e depois um pull request, com testes para o que mudou. Rode `npm run typecheck` e `npm test` antes de enviar.
+  e depois um pull request, com testes para o que mudou. Rode `npm run typecheck`, `npm run lint` e `npm test`
+  antes de enviar (o CI roda os três em todo pull request).
 - **Código de terceiros e créditos de ideias:** [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Créditos

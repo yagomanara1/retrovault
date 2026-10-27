@@ -265,17 +265,25 @@ export class GameService {
     return changed;
   }
 
-  /** Substitui ícones antigos (data URL 32×32) pelo ícone em alta resolução do executável. */
+  /**
+   * Substitui ícones antigos (data URL 32×32) pelo ícone em alta resolução do executável. Só esses: jogo
+   * sem ícone (o .exe não tem, ou sumiu) não é tentado de novo a cada abertura. Até 4 extrações por vez.
+   */
   async upgradeLegacyIcons(): Promise<number> {
+    const legacy = this.repo.list().filter((g) => g.kind === 'executable' && g.iconUrl?.startsWith('data:'));
     let upgraded = 0;
-    for (const game of this.repo.list()) {
-      if (game.kind !== 'executable' || isLocalArtwork(game.iconUrl)) continue;
-      const iconUrl = await this.artwork.extractExecutableIcon(game.path);
-      if (iconUrl) {
-        this.repo.update(game.id, { iconUrl });
-        upgraded++;
+    let next = 0;
+    const worker = async () => {
+      while (next < legacy.length) {
+        const game = legacy[next++]!;
+        const iconUrl = await this.artwork.extractExecutableIcon(game.path);
+        if (iconUrl) {
+          this.repo.update(game.id, { iconUrl });
+          upgraded++;
+        }
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, legacy.length) }, worker));
     return upgraded;
   }
 

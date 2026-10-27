@@ -4,6 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, net, Notification, protocol, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import { isAppUrl, RENDERER_INDEX } from './appOrigin';
 import { createContainer } from './container';
 import { openDatabase } from './db/database';
 import { registerIpc } from './ipc';
@@ -28,10 +29,8 @@ function isSafeExternalUrl(url: string): boolean {
   }
 }
 
-function isAppUrl(url: string): boolean {
-  const devUrl = process.env.ELECTRON_RENDERER_URL;
-  return url.startsWith('file://') || (!!devUrl && url.startsWith(devUrl));
-}
+/** Servidor do electron-vite: só em desenvolvimento (no app empacotado, a variável é ignorada). */
+const DEV_RENDERER_URL = app.isPackaged ? null : (process.env.ELECTRON_RENDERER_URL ?? null);
 
 /** Acrylic (vidro fosco) existe a partir do Windows 11 22H2 (build 22621). */
 function supportsAcrylic(): boolean {
@@ -97,16 +96,16 @@ function createMainWindow(): BrowserWindow {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (event, url) => {
-    if (!isAppUrl(url)) event.preventDefault();
+    if (!isAppUrl(url, { indexFile: RENDERER_INDEX, devUrl: DEV_RENDERER_URL })) event.preventDefault();
   });
 
   const query = acrylic ? { material: 'acrylic' } : undefined;
-  if (process.env.ELECTRON_RENDERER_URL) {
-    const url = new URL(process.env.ELECTRON_RENDERER_URL);
+  if (DEV_RENDERER_URL) {
+    const url = new URL(DEV_RENDERER_URL);
     if (query) url.searchParams.set('material', query.material);
     void win.loadURL(url.toString());
   } else {
-    void win.loadFile(path.join(__dirname, '../renderer/index.html'), { query });
+    void win.loadFile(RENDERER_INDEX, { query });
   }
 
   win.on('closed', () => {
@@ -177,19 +176,8 @@ async function bootstrap(): Promise<void> {
   registerIpc(container);
   container.cache.purgeExpired();
 
-  try {
-    const upgraded = await container.games.upgradeLegacyIcons();
-    if (upgraded) console.info(`[artwork] ${upgraded} ícone(s) atualizados para alta resolução`);
-    // Inclui ícones de troféu e a arte dos backups: restaurar um backup não pode trazer imagens quebradas.
-    await container.artwork.collectGarbage([
-      ...container.games.referencedArtwork(),
-      ...container.trophies.referencedArtwork(),
-      ...(await container.backups.referencedArtwork()),
-      ...container.storeArt.referencedArtwork(),
-    ]);
-  } catch (err) {
-    console.warn('[artwork] manutenção inicial falhou', err);
-  }
+  // A janela abre já: a manutenção (arte, caminhos, troféus) roda em segundo plano e avisa o renderer.
+  mainWindow = createMainWindow();
   container.trophyWatcher.start();
   void container.maintenance.startup();
   setInterval(() => container.cache.purgeExpired(), 60 * 60 * 1000).unref();
@@ -202,15 +190,13 @@ async function bootstrap(): Promise<void> {
   setInterval(dailyBackup, 6 * 60 * 60 * 1000).unref();
   setInterval(() => void container.maintenance.periodicSaveBackup(), 15 * 60 * 1000).unref();
   // Atualizações dos ports: 1 min depois de abrir (sem pesar na inicialização) e a cada 6 h.
-  const checkPortUpdates = () => void container.checkPortUpdates().catch((err) => console.warn('[store] verificação de atualizações falhou', err));
+  const checkPortUpdates = () => void container.ports.checkUpdates().catch((err) => console.warn('[store] verificação de atualizações falhou', err));
   setTimeout(checkPortUpdates, 60 * 1000).unref();
   setInterval(checkPortUpdates, 6 * 60 * 60 * 1000).unref();
   // Versão nova do próprio RetroVault: 30 s depois de abrir e a cada 6 h (baixa em segundo plano).
   const checkAppUpdate = () => void container.appUpdate.check();
   setTimeout(checkAppUpdate, 30 * 1000).unref();
   setInterval(checkAppUpdate, 6 * 60 * 60 * 1000).unref();
-
-  mainWindow = createMainWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createMainWindow();

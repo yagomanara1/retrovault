@@ -3,7 +3,7 @@
 Como o RetroVault funciona por dentro, como rodar o projeto e as decisões de cada parte. Para o que o app faz,
 veja o [README](../README.md).
 
-Electron 33 + React + TypeScript (electron-vite), SQLite (better-sqlite3) com migrations, IPC validado com zod
+Electron 44 + React + TypeScript (electron-vite 6, vite 8), SQLite (better-sqlite3 13) com migrations, IPC validado com zod 4
 (contrato em `src/shared/ipc.ts`) e testes com Vitest.
 
 ## Como funciona o vínculo com o RetroArch
@@ -12,8 +12,14 @@ Quem desbloqueia as conquistas é o próprio RetroArch, usando a biblioteca **rc
 
 1. **Inicia o jogo** com `retroarch.exe --appendconfig <override> -L <core> <rom>`. O arquivo de override força `cheevos_enable = "true"` e o modo Hardcore escolhido, sem alterar o seu `retroarch.cfg`.
 2. **Identifica a ROM**: calcula o hash MD5 no mesmo formato do rcheevos, removendo cabeçalhos iNES/SNES/Lynx/7800 e normalizando a ordem de bytes de ROMs de N64. Depois procura esse hash na base do RetroAchievements (`API_GetGameList?h=1`).
-   - **ROMs dentro de `.zip`:** usa o arquivo de dentro com a extensão do console (`readZipEntry`).
-   - **Nintendo DS:** cabeçalho, código ARM9/ARM7 e ícone (`hashNds`).
+   - **Leitura em pedaços** (`fileHash.ts`): o arquivo é lido de 1 MB em 1 MB, sem carregar a ROM inteira, e o
+     processo principal atende a janela entre um pedaço e outro. `romLayout` decide pelos primeiros 512 bytes e pelo
+     tamanho quanto pular (cabeçalhos) e como reordenar (N64), então o resultado é o mesmo da ROM inteira na memória.
+     Numa ROM de N64 de 64 MB: ~67 MB de memória a menos, e o main fica travado no máximo ~5 ms por vez (antes
+     ~150 ms de uma vez). O `.pbp` do PSP também é lido assim.
+   - **ROMs dentro de `.zip`:** usa o arquivo de dentro com a extensão do console (`readZipEntry`), descompactado na memória (até 128 MB).
+   - **Nintendo DS:** cabeçalho, código ARM9/ARM7 e ícone (`hashNds`). De um arquivo solto, lê só esses trechos: ROMs
+     de qualquer tamanho são identificadas (antes, as maiores que 128 MB ficavam de fora).
    - **Jogos de disco** (`services/disc/`):
      - **Leitor** (`discImage.ts`): abre ISO, BIN/IMG crus (2352 ou 2336 por setor), CUE, CSO (PSP) e M3U (primeiro disco). Lê só os setores necessários.
      - **Formato dos setores:** descoberto pelo conteúdo, como no rcheevos, procurando o sincronismo de CD e "CD001" no setor 16. O modo declarado no `.cue` só vale quando o conteúdo não diz nada.
@@ -51,7 +57,11 @@ Para gerar o instalador: `npm run dist`. O arquivo fica em `release/`. Para só 
 `npm run package` (gera `release\win-unpacked\RetroVault.exe`). Publicar uma versão: [PUBLICAR.md](PUBLICAR.md).
 
 **Problemas conhecidos no ambiente:**
-- O `better-sqlite3` está fixado na versão `12.11.1`, que publica binários prontos para o Electron 33 (ABI 130) e para o Node 24 (ABI 137). Outras versões podem tentar compilar o módulo e exigir Python e o Visual Studio Build Tools.
+- **Nada é compilado na instalação.** O `better-sqlite3` 13 traz um binário pronto por plataforma
+  (`prebuilds/win32-x64.node`), que serve tanto ao Node quanto ao Electron. O script de instalação dele mandaria
+  compilar do código-fonte (exige Visual Studio) e está **negado** em `allowScripts` no `package.json`
+  (`npm install-scripts deny better-sqlite3`). Também por isso não há `postinstall` e o electron-builder usa
+  `npmRebuild: false`.
 - Se o app fechar sem mostrar nada ao ser iniciado pelo terminal integrado do VS Code, rode `Remove-Item Env:ELECTRON_RUN_AS_NODE` antes. O VS Code define essa variável, e ela faz o Electron rodar como Node puro.
 
 ---
@@ -62,10 +72,17 @@ Para gerar o instalador: `npm run dist`. O arquivo fica em `release/`. Para só 
 npm test                                         # roda uma vez (~1 s)
 npm test -- src/main/services/trp.test.ts        # um arquivo
 npm run test:watch                               # reexecuta ao salvar
+npm run lint                                     # ESLint (também roda no CI)
 ```
 
+- **Testes da interface** (`*.test.tsx`): jsdom + Testing Library; cada arquivo começa com
+  `// @vitest-environment jsdom` (o resto roda em Node). Cobrem o cartão de jogo, o interruptor (acessibilidade) e o
+  fluxo da tela da Steam (pré-seleção, confirmação em dois cliques, o que é enviado, Steam aberta).
+- **Lint** (`eslint.config.mjs`): recomendações de JS e TypeScript e as regras de hooks do React
+  (`rules-of-hooks`, `exhaustive-deps`), sem regras de estilo. Ao ser ligado, achou um hook chamado só às vezes
+  (`StorePage`), que podia quebrar a tela quando um port terminava de instalar.
 - **Vitest**, com os testes ao lado do código (`*.test.ts`). O `npm run package` e o `npm run dist` rodam os testes antes de gerar o executável: se algum falhar, nada é empacotado.
-- Os testes rodam **dentro do Node do Electron** (`scripts/test.mjs` define `ELECTRON_RUN_AS_NODE=1`). O `better-sqlite3` é compilado para o ABI do Electron e não carrega no Node do sistema, então os testes de banco usam o mesmo binário do app.
+- Os testes rodam **dentro do Node do Electron** (`scripts/test.mjs` define `ELECTRON_RUN_AS_NODE=1`): mesma versão do Node e mesmo binário do `better-sqlite3` que vão no app.
 - **Cobertura:**
   - Parser e criptografia do `.trp`, com pacote e chave sintéticos (nenhuma chave real).
   - Localizador do dump (game-path, argumentos, nearby e config do launcher, inclusive o falso positivo).
@@ -75,6 +92,16 @@ npm run test:watch                               # reexecuta ao salvar
   - Nível e percentual de troféus.
   - Banco: migrations com backup prévio, opt-out, log desativado, visão geral, cascata, exportar/importar progresso, backup, restauração, poda e path traversal.
 - `src/main/testing/tempDir.ts`: pastas temporárias por teste, com árvores de arquivos descritas em objeto.
+- **CI** (`.github/workflows/ci.yml`): em todo push na `main` e em todo pull request, o GitHub Actions roda
+  `npm ci`, `npm run typecheck` e `npm test` num Windows limpo (`windows-latest`, Node 24), só com permissão de
+  leitura. É no Windows porque o app é só para Windows e parte dos testes usa caminhos `C:\...`, PowerShell e o
+  `tar.exe` do sistema; fora dele, cerca de 20 testes falham.
+- **Scripts de instalação (npm 11, `allowScripts` no `package.json`):** o do `better-sqlite3` é negado (usa o
+  binário pronto) e o do `electron-winstaller` é aprovado. Pacote novo com script de instalação aparece num aviso
+  do `npm install`; decida com `npm install-scripts approve <pacote>` ou `deny <pacote>`.
+- **Simular o CI no PC:** copie só os arquivos do Git para uma pasta vazia e rode `npm ci`, `npm run typecheck` e
+  `npm test`. Foi assim que apareceu a compilação indevida do `better-sqlite3`, que não aparecia com o
+  `node_modules` já instalado.
 
 ## Arquitetura
 
@@ -106,7 +133,7 @@ npm run test:watch                               # reexecuta ao salvar
 |---|---|---|
 | `renderer/` | UI, estado de tela, cache de UI (react-query) | Node, SQLite, HTTP |
 | `preload/` | Ponte mínima e tipada (`window.bridge`) | Regras de negócio |
-| `main/ipc.ts` | Validação da entrada (zod), autorização do sender, mapeamento de erros | SQL, HTTP |
+| `main/ipc/` | Validação da entrada (zod), autorização do sender, mapeamento de erros; um arquivo por assunto | SQL, HTTP |
 | `main/services/` | Regras de negócio, processos, integração externa | Electron IPC |
 | `main/db/` | Persistência (repositórios, migrations) | Regras de negócio |
 | `shared/` | Contrato IPC, tipos de domínio e catálogo de consoles | Runtime específico |
@@ -138,6 +165,28 @@ npm run test:watch                               # reexecuta ao salvar
 - **Deduplicação:** requisições simultâneas para a mesma chave compartilham uma única promise.
 - **Invalidação por eventos:** fim de sessão, novo desbloqueio e troca de conta limpam as chaves do usuário (`u:<user>:*`).
 - **Rate limit:** no mínimo 250 ms entre o início de duas requisições, com retry e backoff exponencial em 429, 5xx e erros de rede.
+- **Recargas da biblioteca juntadas:** toda mudança de jogo feita no main (arte do dump, Steam, SteamGridDB,
+  categoria, Loja) passa por `notifyGameChanged` (`idBatcher.ts`), que junta os ids por 200 ms num só
+  `games:changed { gameIds }`. Importar 300 jogos gera poucas recargas da lista, não uma ou mais por jogo.
+- **Grade com muitos jogos:** cartão fora da tela não é desenhado (`content-visibility: auto` em
+  `.grid--games > .game-card`, com tamanho reservado). A contenção de pintura cortaria a sombra e a capa
+  levantada do hover; `overflow-clip-margin: 72px` dá a folga (conferido pixel a pixel: idêntico ao sem o recurso).
+  Medido com 3.016 jogos no app empacotado: a grade abre em ~0,5 s (antes 1,0–1,7 s) e a rolagem rápida fica em
+  ~100 quadros/s (antes ~50). Só uma rolagem irreal, da lista inteira em 4 s, fica pior. A tela inicial estilo
+  PS5 já ia bem com 3.000 jogos (abre em ~0,6 s, sem quadros lentos ao navegar) e não mudou.
+
+### Inicialização
+
+A janela abre logo depois do banco, do IPC e do protocolo `rv-media://`. O resto roda em segundo plano, em
+`MaintenanceService.startup()` (`services/maintenanceService.ts`), nesta ordem (coberta por `maintenance.test.ts`):
+1. **Manutenção de arte** (`artworkMaintenance`): troca os ícones antigos (data URL 32×32) pelo ícone em alta
+   do `.exe`, até 4 de cada vez. Só os de data URL: jogo sem ícone não é tentado de novo a cada abertura. Depois
+   apaga a arte sem uso. Nunca apaga arquivo com menos de 10 min, que pode ter acabado de ser gravado e ainda não
+   estar no banco. A leitura dos backups cede a vez ao IPC entre um arquivo e outro.
+2. Categorias dos ports, sobras de instalações e mods, reparo de caminhos, arte do dump, troféus e saves.
+
+Medido no app empacotado: com 75 backups e 3.000 artes sem uso, a manutenção leva ~440 ms e a janela aparece em
+~0,6 s, sem esperar por ela. Antes, ela vinha antes da janela.
 
 ## Estrutura de arquivos
 
@@ -153,8 +202,15 @@ retrovault/
    │  └─ consoles.ts            # catálogo de consoles, extensões, cores e métodos de hash
    ├─ main/
    │  ├─ index.ts               # bootstrap, janela, segurança
-   │  ├─ container.ts           # composition root (injeção de dependência)
-   │  ├─ ipc.ts                 # rotas IPC + validação zod
+   │  ├─ appOrigin.ts           # qual URL é a página do app (IPC e bloqueio de navegação)
+   │  ├─ container.ts           # composition root: só monta as peças (sem regra de negócio)
+   │  ├─ ipc/                   # rotas IPC + validação zod
+   │  │  ├─ core.ts             # handle(), origem confiável, schemas básicos (id, portId), diálogos e pastas
+   │  │  ├─ games.ts            # jogos, importação, arte, troféus locais, categorias
+   │  │  ├─ saves.ts            # saves, nuvem, backups, progresso
+   │  │  ├─ store.ts            # Loja, mods, SteamGridDB, ROMs, conta do GitHub
+   │  │  ├─ system.ts           # diálogos, app, emuladores, Steam, configurações, RetroAchievements
+   │  │  └─ index.ts            # registerIpc (ipc.test.ts: todo canal da whitelist tem um handler, só um)
    │  ├─ errors.ts              # AppError → IpcError
    │  ├─ db/
    │  │  ├─ database.ts         # conexão + migrator
@@ -176,16 +232,23 @@ retrovault/
    └─ renderer/
       ├─ index.html             # CSP restritiva
       └─ src/
-         ├─ main.tsx / App.tsx
+         ├─ main.tsx / App.tsx  # Loja, Configurações, Perfil e RA em pedaços sob demanda (React.lazy),
+         │                      # pré-carregados quando o app fica ocioso
          ├─ lib/                # api (call tipado), format, cx
-         ├─ hooks/              # queries (react-query), eventos, debounce
-         ├─ pages/              # LibraryHome, GameDetail, Profile, RaGame, Settings
+         ├─ hooks/
+         │  ├─ queries.ts       # índice: reexporta ./queries (o import "@/hooks/queries" não muda)
+         │  ├─ queries/         # keys (chaves do cache), library, settings, ra, saves, categories,
+         │  │                   # trophies, store, system
+         │  └─ …                # eventos do main, visão da biblioteca, debounce
+         ├─ pages/              # LibraryHome, GameDetail, Profile, RaGame, Settings, Store
          ├─ components/
          │  ├─ ui/              # Button, Modal, Toast, Form, ProgressBar, States…
          │  ├─ layout/          # TopNav, GameSidebar, LibraryLayout
          │  ├─ library/         # GameCard, AddGame, LinkRaGame, GameSettings
          │  └─ achievements/    # AchievementPanel, Row, Summary, utils
-         └─ styles/global.css
+         └─ styles/             # index.css importa tokens, base, layout, controls, feedback, features
+            └─ features/        # um CSS por tela, importados por features.css NA ordem original
+                                # (a divisão foi conferida: o CSS final tem as mesmas regras na mesma ordem)
 ```
 
 ## Esquema do banco (SQLite)
@@ -999,12 +1062,15 @@ São para jogos que não estão no RetroAchievements, como ports nativos de PS4 
 - **Instalador** (`npm run dist`): NSIS em português, só para o usuário (sem administrador), com escolha de pasta e atalhos
   na Área de Trabalho e no Menu Iniciar. Gera `release/RetroVault-Setup-<versão>.exe`, o `.blockmap` e o `latest.yml`.
   Desinstalar mantém `%APPDATA%\RetroVault` (`deleteAppDataOnUninstall: false`).
+  - `npmRebuild: false`: o `better-sqlite3` já vem com o binário pronto, e recompilar exigiria Visual Studio.
+  - `files` deixa de fora o código-fonte do SQLite e os binários de macOS, Linux e ARM (~25 MB a menos).
+  - Com o Electron 44 (Chromium 152), o instalador tem ~117 MB (era ~86 MB no Electron 33): o próprio Chromium cresceu.
 - **Ícone:** `build/icon.svg` (cartucho com fechadura) → `build/icon.png` por `npm run icon` (renderizado pelo Chromium
   do Electron). O electron-builder gera o `.ico` do instalador e do `.exe`.
 - **winCodeSign no Windows sem administrador:** o pacote traz links simbólicos de macOS que o Windows não deixa criar,
   e o build falha. Solução usada: extrair `winCodeSign-2.6.0.7z` em `%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\winCodeSign-2.6.0`
   com `-xr!darwin`. Isso é feito uma vez por máquina.
-- **Atualização** (`services/appUpdateService.ts`, electron-updater 6.3.9): procura nas Releases de
+- **Atualização** (`services/appUpdateService.ts`, electron-updater 6.8): procura nas Releases de
   `github.com/yagomanara1/retrovault` 30 s depois de abrir e a cada 6 h; baixa sozinho (confere o SHA-512 do
   `latest.yml`). A faixa "Reiniciar e atualizar" (`AppUpdateBanner`) e a seção "Atualizações do RetroVault" nas Configurações
   chamam `quitAndInstall(true, true)`: instalação silenciosa e app reaberto. Fechar o app também instala, sem reabrir.
@@ -1012,9 +1078,13 @@ São para jogos que não estão no RetroAchievements, como ports nativos de PS4 
     ao lado do `.exe`, e assim o electron-updater nem é carregado.
   - **Não reinicia no meio de uma instalação de port** (`busyReason`).
   - **Teste local:** `RETROVAULT_UPDATE_FEED` aponta para um servidor no próprio PC (só aceita `127.0.0.1`/`localhost`);
-    `RETROVAULT_USER_DATA_DIR` troca a pasta de dados, inclusive quando o instalador reabre o app.
+    `RETROVAULT_USER_DATA_DIR` troca a pasta de dados. **Cuidado:** quando a atualização é instalada ao *fechar* o
+    app, o app reaberto pelo instalador não herda essa variável e usa o `%APPDATA%\RetroVault` real. Num teste,
+    instale pelo botão "Reiniciar e atualizar" ou feche o app só depois de terminar.
   - Validado de ponta a ponta: 0.1.0 instalado → achou a 0.1.1 → baixou → "Reiniciar e atualizar" → reabriu na 0.1.1
     em cerca de 10 s → desinstalação limpa (pasta, atalhos, registro), com os dados preservados.
+  - Validado na troca para o Electron 44: a **0.1.2 publicada** (Electron 33, electron-updater 6.3.9) achou uma
+    0.1.3 de teste feita com Electron 44 + electron-builder 26, baixou, conferiu o SHA-512, instalou e reabriu na 0.1.3.
 - **Publicar** (`npm run release:check`): confere que o `latest.yml` é desta versão e que o hash e o tamanho são os
   do instalador, recusando se não forem, e que o `icon.png` da raiz (usado pelo Discord) é o mesmo do app. O código
   e as versões ficam no mesmo repositório; passo a passo em [PUBLICAR.md](PUBLICAR.md).
@@ -1023,6 +1093,10 @@ São para jogos que não estão no RetroAchievements, como ports nativos de PS4 
 
 - `contextIsolation` e `sandbox` ligados, `nodeIntegration` desligado. O preload expõe apenas os canais da whitelist.
 - Todas as entradas IPC são validadas com zod. O main recusa chamadas de qualquer frame que não seja o do próprio app.
+  "O próprio app" (`appOrigin.ts`, usado pelo IPC e pelo bloqueio de navegação) é **só** o `out/renderer/index.html`
+  empacotado (com qualquer `#rota`/`?parâmetro`): outro `file://`, mesmo da mesma pasta, é recusado. O endereço do
+  servidor de desenvolvimento (`ELECTRON_RENDERER_URL`) só vale fora do app empacotado. Conferido no app: um HTML
+  qualquer aberto na janela recebe "Origem não autorizada" ao chamar o IPC.
 - A CSP permite imagens somente de `media.retroachievements.org`. Navegação para fora do app é bloqueada e links externos abrem no navegador.
 - A Web API Key é cifrada com `safeStorage` (DPAPI no Windows) e nunca volta para o renderer.
 

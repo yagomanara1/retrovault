@@ -126,15 +126,23 @@ export class ArtworkService {
     return null;
   }
 
-  /** Remove arquivos que nenhum jogo referencia mais. */
-  async collectGarbage(referenced: Iterable<string | null>): Promise<void> {
+  /**
+   * Remove arquivos que nenhum jogo referencia mais. `minAgeMs` poupa os recentes: com o app aberto, uma
+   * arte pode ter sido gravada agora e ainda não estar no banco.
+   */
+  async collectGarbage(referenced: Iterable<string | null>, { minAgeMs = 0 }: { minAgeMs?: number } = {}): Promise<void> {
     const keep = new Set<string>();
     for (const url of referenced) if (url && isLocalArtwork(url)) keep.add(url.slice(URL_PREFIX.length));
     const files = await fs.readdir(this.dir).catch(() => [] as string[]);
+    const cutoff = Date.now() - minAgeMs;
     await Promise.all(
       files
         .filter((f) => FILE_PATTERN.test(f) && !keep.has(f))
-        .map((f) => fs.rm(path.join(this.dir, f), { force: true })),
+        .map(async (f) => {
+          const file = path.join(this.dir, f);
+          if (minAgeMs > 0 && ((await fs.stat(file).catch(() => null))?.mtimeMs ?? 0) > cutoff) return;
+          await fs.rm(file, { force: true });
+        }),
     );
   }
 

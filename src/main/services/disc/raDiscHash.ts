@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { ConsoleId } from '@shared/consoles';
+import { md5Range } from '../fileHash';
 import { openDiscImage, type DiscImage } from './discImage';
 import { findDiscFile, readDiscFile, type DiscFile } from './iso9660';
 
@@ -82,12 +83,10 @@ async function hashSegaDisc(disc: DiscImage): Promise<string | null> {
 /** Hash RetroAchievements de uma imagem de disco; null se o disco não tiver o que o método procura. */
 export async function hashDisc(file: string, method: DiscHashMethod): Promise<string | null> {
   if (method === 'psp' && path.extname(file).toLowerCase() === '.pbp') {
-    // Pacote PBP do PSP: o rcheevos usa o arquivo inteiro (até 64 MB).
+    // Pacote PBP do PSP: o rcheevos usa o arquivo inteiro (até 64 MB), lido aqui em pedaços.
     const handle = await fs.open(file, 'r');
     try {
-      const data = Buffer.alloc(Math.min((await handle.stat()).size, MAX_HASH_BYTES));
-      await handle.read(data, 0, data.length, 0);
-      return createHash('md5').update(data).digest('hex');
+      return await md5Range(handle, 0, Math.min((await handle.stat()).size, MAX_HASH_BYTES));
     } finally {
       await handle.close();
     }

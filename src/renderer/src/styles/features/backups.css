@@ -1,0 +1,45 @@
+/* Backups. */
+
+/* ---------- Backups ---------- */
+
+.backup-list__title {
+  margin: 20px 0 8px;
+}
+.backup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.backup-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+}
+.backup-list__info {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.backup-list__info strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+.backup-list__info span {
+  font-size: 12px;
+}
+.backup-list__warning {
+  color: var(--warning);
+  font-size: 12px;
+}
+.backup-list__actions {
+  display: flex;
+  gap: 6px;
+}

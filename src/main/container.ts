@@ -49,8 +49,11 @@ import { EmulatorService } from './services/emulatorService';
 import { DISCORD_CLIENT_ID, DISCORD_FALLBACK_IMAGE, isDiscordImage } from './services/discord/discordConfig';
 import { DiscordPresenceService } from './services/discord/discordPresence';
 import { findSteamRoot, type StoreLibraryDeps } from './services/storeLibraries';
-import { findSteamApp, steamArtwork, steamPlaytime } from './services/steam/steamLibrary';
+import { applySteamGameData } from './services/steam/steamGameData';
+import { MaintenanceService } from './services/maintenanceService';
+import { PortLifecycleService } from './services/store/portLifecycleService';
 import { fetchImage, isSteamRunning, SteamShortcutService } from './services/steam/steamShortcutService';
+import { createIdBatcher } from './services/idBatcher';
 import type { Game } from '@shared/types';
 
 export interface ContainerDeps {
@@ -89,8 +92,6 @@ export interface ContainerDeps {
 }
 
 const GRADE_LABEL = { P: 'Platina', G: 'Ouro', S: 'Prata', B: 'Bronze' } as const;
-/** Por quanto tempo lembrar que a versão nova de um port já foi avisada (uma notificação por versão). */
-const NOTIFIED_TTL_MS = 365 * 24 * 60 * 60_000;
 
 /** Composition root: único lugar que conhece as implementações concretas. */
 export function createContainer(deps: ContainerDeps) {
@@ -99,7 +100,9 @@ export function createContainer(deps: ContainerDeps) {
   const trophyRepo = new TrophyRepository(db);
   const backups = new BackupService(db, dbFile, backupDir);
   const progress = new ProgressService(gameRepo, trophyRepo);
-  const settings = new SettingsService(new SettingsRepository(db), path.join(deps.documentsDir, 'RetroVault', 'Saves'));
+  // Um só repositório de configurações (chave/valor): serviços diferentes leem e gravam chaves próprias.
+  const settingsRepo = new SettingsRepository(db);
+  const settings = new SettingsService(settingsRepo, path.join(deps.documentsDir, 'RetroVault', 'Saves'));
   const cache = new ApiCache(new CacheRepository(db));
   const ra = new RetroAchievementsClient(() => settings.getRaCredentials(), cache);
   const retroarch = new RetroArchService(settings, userDataDir);
@@ -117,7 +120,7 @@ export function createContainer(deps: ContainerDeps) {
   });
 
   const emulators = new EmulatorService({
-    repo: new SettingsRepository(db),
+    repo: settingsRepo,
     installRoots: deps.programDirs,
     homeDir: deps.homeDir,
     retroArchCores: async () => (await retroarch.status()).cores.map((c) => c.name),
@@ -212,11 +215,9 @@ export function createContainer(deps: ContainerDeps) {
     },
   });
 
-  const applyDumpArtwork = (gameId: number) =>
-    games
-      .applyDumpArtwork(gameId)
-      .then((game) => game && emit('games:changed', { gameId }))
-      .catch((err) => console.warn('[artwork] arte do dump falhou', err));
+  // Uma recarga da lista no renderer por rajada de mudanças, não uma por jogo.
+  const changedGames = createIdBatcher((gameIds) => emit('games:changed', { gameIds }));
+  const notifyGameChanged = (gameId: number) => changedGames.add(gameId);
 
   const storeDeps: StoreLibraryDeps = {
     programData: deps.programDataDir,
@@ -241,24 +242,10 @@ export function createContainer(deps: ContainerDeps) {
     launchSpecFor: (game) => launcher.launchSpecFor(game),
     artworkFile: (url) => artwork.resolve(url),
     downloadImage: fetchImage,
-    repo: new SettingsRepository(db),
+    repo: settingsRepo,
     backupDir: path.join(userDataDir, 'steam-backups'),
     launcherExe: deps.launcherExe,
   });
-
-  /** Jogo da Steam: capa, fundo e tempo de jogo que ela já tem no PC (antes do SteamGridDB completar). */
-  async function applySteamData(gameId: number): Promise<Game | null> {
-    const game = games.get(gameId);
-    if (!game.steamAppId) return null;
-    const root = await steamRoot();
-    if (!root) return null;
-    const [art, app] = await Promise.all([steamArtwork(root, game.steamAppId), findSteamApp(root, game.steamAppId)]);
-    return games.applySteamData(gameId, {
-      coverPath: art.cover,
-      backgroundPath: art.background,
-      playtime: app ? await steamPlaytime(root, app) : null,
-    });
-  }
 
   const categories = new CategoryService({
     repo: new CategoryRepository(db),
@@ -271,57 +258,6 @@ export function createContainer(deps: ContainerDeps) {
   } catch (err) {
     console.warn('[categories] categorias de console falharam', err);
   }
-
-  /** Tarefas de fundo da biblioteca, num só lugar para a ordem ficar explícita. */
-  const maintenance = {
-    /** Jogo com argumentos alterados: troféus e arte do dump em segundo plano. */
-    gameChanged(gameId: number): void {
-      void trophies.queueAutoImport(gameId);
-      void applyDumpArtwork(gameId);
-    },
-    /**
-     * Jogo novo: além de troféus e arte, entra na categoria da sua plataforma (se ela existir).
-     * A categoria espera a importação de troféus: é ela que revela um port de PS4.
-     */
-    gameAdded(gameId: number, origin: 'library' | 'store' = 'library'): void {
-      // Arte do dump primeiro (é a oficial); depois o SteamGridDB completa o que faltar. Ports da
-      // Loja já recebem a arte deles em afterPortInstall: não disputam a mesma capa.
-      void applyDumpArtwork(gameId)
-        .then(() => applySteamData(gameId).catch((err) => console.warn('[steam] arte/tempo da Steam falharam', err)))
-        .then((game) => game && emit('games:changed', { gameId }))
-        .then(() => (origin === 'store' ? null : gameArt.autoFill(gameId)))
-        .then((game) => game && emit('games:changed', { gameId }))
-        .catch((err) => console.warn('[art] arte automática falhou', err));
-      void trophies
-        .queueAutoImport(gameId)
-        .then(() => categories.assignNewGame(gameId))
-        .then((assigned) => assigned && emit('games:changed', { gameId }))
-        .catch((err) => console.warn('[categories] categoria automática falhou', err));
-    },
-    /** Na inicialização: caminhos primeiro (o resto depende deles), depois arte e troféus. */
-    async startup(): Promise<void> {
-      // Ports já instalados entram na categoria do seu console (os que ainda não têm categoria).
-      for (const install of storeRepo.list()) await categorizeStorePort(install.portId);
-      await installs.cleanupLeftovers();
-      await mods.cleanupLeftovers();
-      await relocation.repairLibrary().catch((err) => console.warn('[relocation] reparo inicial falhou', err));
-      const changed = await games.applyDumpArtworkToLibrary();
-      for (const game of changed) emit('games:changed', { gameId: game.id });
-      await trophies.scanLibrary();
-      // Troféus ganhos no RPCS3/Vita3K com o RetroVault fechado.
-      await trophies.syncAllEmulatorSets();
-      // Primeira proteção (e saves alterados com o app fechado): só grava o que mudou.
-      if (settings.get().autoBackupSaves) await saves.backupLibrary('initial');
-    },
-    /** A cada 15 min: pega saves de jogos abertos fora do RetroVault (ex.: "Play God of War III.exe"). */
-    async periodicSaveBackup(): Promise<void> {
-      if (!settings.get().autoBackupSaves) return;
-      for (const game of games.list()) {
-        if (launcher.runningGameIds().includes(game.id)) continue; // jogo aberto: espera fechar
-        backupSave(game.id, 'auto');
-      }
-    },
-  };
 
   const github = new GitHubClient(cache, () => settings.getGitHubToken());
   const store = new StoreCatalogService({
@@ -359,67 +295,26 @@ export function createContainer(deps: ContainerDeps) {
     sgdbKey: () => settings.getSgdbKey(),
   });
 
-  /** Capa e fundo da Loja para o jogo do port (só onde ele ainda não tem arte). */
-  async function applyStoreArt(portId: string): Promise<void> {
-    const gameId = storeRepo.gameFor(portId);
-    if (!gameId) return;
-    try {
-      const art = await storeArt.art(await store.port(portId));
-      if (games.applyArtworkIfMissing(gameId, { cover: art.cover, background: art.hero })) emit('games:changed', { gameId });
-    } catch (err) {
-      console.warn('[store] arte do jogo instalado falhou', portId, err);
-    }
-  }
-
-  /** Jogo do port na categoria do console original (só se ele ainda não tiver categoria). */
-  async function categorizeStorePort(portId: string): Promise<void> {
-    const gameId = storeRepo.gameFor(portId);
-    if (!gameId) return;
-    try {
-      if (categories.assignPortGame(gameId, (await store.port(portId)).original)) emit('games:changed', { gameId });
-    } catch (err) {
-      console.warn('[categories] categoria do port falhou', portId, err);
-    }
-  }
-
-  /** Port instalado: a ROM volta para o lugar, o jogo ganha a arte da Loja e a categoria do console. */
-  async function afterPortInstall(portId: string): Promise<void> {
-    await roms.reapply(portId);
-    await applyStoreArt(portId);
-    await categorizeStorePort(portId);
-  }
-
-  /**
-   * Verificação de fundo das atualizações dos ports instalados (as versões ficam 1 h em cache, com ETag).
-   * Avisa a tela sempre; o Windows só uma vez por versão nova de cada port.
-   */
-  async function checkPortUpdates(): Promise<void> {
-    if (storeRepo.list().length === 0) return;
-    const found = await installs.updates();
-    emit('store:updates-changed', { count: Object.keys(found).length });
-    if (!settings.get().notifyPortUpdates) return;
-    const fresh: string[] = [];
-    for (const [portId, update] of Object.entries(found)) {
-      const key = `notified-update:${portId}`;
-      if (cache.peek<string>(key) === update.tag) continue;
-      cache.set(key, update.tag, NOTIFIED_TTL_MS);
-      fresh.push((await store.port(portId).catch(() => null))?.name ?? portId);
-    }
-    if (fresh.length === 1) notify(`Atualização disponível: ${fresh[0]}`, 'Uma versão nova está na Loja de ports.');
-    else if (fresh.length > 1) {
-      notify(`${fresh.length} ports com atualização`, `${fresh.slice(0, 3).join(', ')}${fresh.length > 3 ? '…' : ''}. Abra a Loja para atualizar.`);
-    }
-  }
-
-  /** Chave do SteamGridDB recém-conectada: dá capa aos ports que já estavam instalados. */
-  async function applyStoreArtToLibrary(): Promise<void> {
-    for (const install of storeRepo.list()) await applyStoreArt(install.portId);
-  }
+  const ports = new PortLifecycleService({
+    installs: storeRepo,
+    catalog: store,
+    art: storeArt,
+    games,
+    categories,
+    roms,
+    // installs é criado logo abaixo (ele chama ports.afterInstall): lido só quando a verificação roda.
+    updates: (): Promise<Record<string, { tag: string }>> => installs.updates(),
+    notified: cache,
+    notifyPortUpdates: () => settings.get().notifyPortUpdates,
+    onGameChanged: notifyGameChanged,
+    onUpdatesChanged: (count) => emit('store:updates-changed', { count }),
+    notify,
+  });
 
   const installs = new InstallService({
     store,
     repo: storeRepo,
-    afterInstall: afterPortInstall,
+    afterInstall: (portId): Promise<void> => ports.afterInstall(portId),
     root: path.join(deps.localAppDataDir, 'RetroVault', 'Ports'),
     games,
     isRunning: (gameId) => launcher.runningGameIds().includes(gameId),
@@ -433,6 +328,27 @@ export function createContainer(deps: ContainerDeps) {
     pickExecutable: deps.pickExecutable,
     onProgress: (progress) => emit('store:install-progress', progress),
     onGameAdded: (gameId) => maintenance.gameAdded(gameId, 'store'),
+  });
+
+  const maintenance = new MaintenanceService({
+    games,
+    trophies,
+    categories,
+    artwork,
+    otherArtwork: async () => [...(await backups.referencedArtwork()), ...storeArt.referencedArtwork()],
+    steamData: (gameId) => applySteamGameData({ games, steamRoot }, gameId),
+    autoFillArt: (gameId) => gameArt.autoFill(gameId),
+    ports,
+    cleanupLeftovers: async () => {
+      await installs.cleanupLeftovers();
+      await mods.cleanupLeftovers();
+    },
+    repairLibrary: () => relocation.repairLibrary(),
+    backupSaves: (reason) => saves.backupLibrary(reason),
+    autoBackupSaves: () => settings.get().autoBackupSaves,
+    isRunning: (gameId) => launcher.runningGameIds().includes(gameId),
+    backupSave,
+    onGameChanged: notifyGameChanged,
   });
 
   /** Imagem pública do jogo para o Discord: capa do RetroAchievements ou do catálogo da Loja. */
@@ -479,7 +395,7 @@ export function createContainer(deps: ContainerDeps) {
     if (next.discordPresence !== prev.discordPresence) discord.settingsChanged();
   });
 
-  return { settings, cache, ra, retroarch, artwork, games, launcher, snapshots, watcher, trophies, trophyWatcher, relocation, maintenance, backups, progress, libraryImport, saves, cloud, exportProgressNextToVault, categories, store, github, installs, roms, storeArt, applyStoreArtToLibrary, gameArt, checkPortUpdates, customPorts, mods, appUpdate, discord, emulators, steamShortcuts, openExternal: deps.openExternal };
+  return { settings, cache, ra, retroarch, artwork, games, launcher, snapshots, watcher, trophies, trophyWatcher, relocation, maintenance, backups, progress, libraryImport, saves, cloud, exportProgressNextToVault, categories, store, github, installs, roms, storeArt, ports, gameArt, customPorts, mods, appUpdate, discord, emulators, steamShortcuts, openExternal: deps.openExternal };
 }
 
 export type Container = ReturnType<typeof createContainer>;

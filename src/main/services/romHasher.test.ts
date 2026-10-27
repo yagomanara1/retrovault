@@ -74,4 +74,43 @@ describe('hashRom', () => {
   it('Arcade: hash do nome do arquivo, não do conteúdo', async () => {
     expect(await hashRom('C:\\roms\\sf2.zip', ConsoleId.Arcade)).toBe(md5(Buffer.from('sf2')));
   });
+
+  it('leitura em pedaços dá o mesmo hash da ROM inteira na memória, em todos os layouts (arquivos > 1 MB)', async () => {
+    // Conteúdo pseudoaleatório de ~3,5 MB: atravessa várias fronteiras de pedaço de 1 MB.
+    const big = (n: number) => Buffer.from(Array.from({ length: n }, (_, i) => (i * 2654435761) >>> 24));
+    const body3m = big(3 * 1024 * 1024 + 8192);
+    const z64 = Buffer.concat([Buffer.from([0x80, 0x37, 0x12, 0x40]), body3m]);
+    const cases: [string, number, Buffer][] = [
+      ['nes', ConsoleId.NES, Buffer.concat([Buffer.from('NES\x1a', 'latin1'), Buffer.alloc(12), body3m])],
+      ['sfc', ConsoleId.SNES, Buffer.concat([Buffer.alloc(512), body3m])],
+      ['pce', ConsoleId.PCEngine, Buffer.concat([Buffer.alloc(512), big(3 * 131072)])],
+      ['lnx', ConsoleId.Lynx, Buffer.concat([Buffer.from('LYNX\0', 'latin1'), Buffer.alloc(59), body3m])],
+      ['a78', ConsoleId.Atari7800, Buffer.concat([Buffer.from('\x01ATARI7800', 'latin1'), Buffer.alloc(118), body3m])],
+      ['z64', ConsoleId.N64, z64],
+      ['v64', ConsoleId.N64, Buffer.from(z64).swap16()],
+      ['n64', ConsoleId.N64, Buffer.from(z64).swap32()],
+      ['md', ConsoleId.Genesis, body3m],
+    ];
+    for (const [ext, consoleId, rom] of cases) {
+      const file = path.join(tmp(), `rom.${ext}`);
+      await fs.writeFile(file, rom);
+      expect(await hashRom(file, consoleId), ext).toBe(md5(normalizeRom(rom, consoleId)));
+    }
+    // As três ordens do N64 dão o mesmo jogo.
+    expect(md5(normalizeRom(Buffer.from(z64).swap16(), ConsoleId.N64))).toBe(md5(z64));
+  });
+
+  it('Nintendo DS grande (300 MB): identificado lendo só o cabeçalho e três trechos', async () => {
+    const rom = Buffer.alloc(0x8000, 7);
+    rom.writeUInt32LE(0x1000, 0x20);
+    rom.writeUInt32LE(0x800, 0x2c);
+    rom.writeUInt32LE(0x2000, 0x30);
+    rom.writeUInt32LE(0x400, 0x3c);
+    rom.writeUInt32LE(0x4000, 0x68);
+    const file = path.join(tmp(), 'grande.nds');
+    await fs.writeFile(file, rom);
+    await fs.truncate(file, 300 * 1024 * 1024); // estende com zeros sem escrever 300 MB
+    const expected = createHash('md5').update(rom.subarray(0, 0x160)).update(rom.subarray(0x1000, 0x1800)).update(rom.subarray(0x2000, 0x2400)).update(rom.subarray(0x4000, 0x4a00)).digest('hex');
+    expect(await hashRom(file, ConsoleId.NDS)).toBe(expected);
+  });
 });
