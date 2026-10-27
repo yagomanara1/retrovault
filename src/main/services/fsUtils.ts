@@ -2,6 +2,14 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { AppError } from '../errors';
 
+/** Arquivo ou pasta existe? */
+export function pathExists(p: string): Promise<boolean> {
+  return fs.stat(p).then(
+    () => true,
+    () => false,
+  );
+}
+
 export async function isFile(filePath: string): Promise<boolean> {
   try {
     return (await fs.stat(filePath)).isFile();

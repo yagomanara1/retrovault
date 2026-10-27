@@ -399,6 +399,23 @@ describe('InstallService', () => {
     expect(downloads).toBe(2);
   });
 
+  it('reinstalar a mesma versão: troca a pasta levando o save, a cópia velha vai para a Lixeira e a anterior continua', async () => {
+    const releases = [release('v1', true, zipOf('v1'))];
+    const { service, calls, root } = setup(releases);
+    const v1 = await service.install('demo');
+    releases.unshift(release('v2', true, zipOf('v2')));
+    const v2 = await service.install('demo');
+    await makeTree(v2.installDir, { 'Save/file1.sav': 'progresso', 'data/pacote.txt': 'estragado' });
+
+    const again = await service.install('demo', 'v2');
+    expect(again).toMatchObject({ tag: 'v2', installDir: path.join(root, 'demo', 'v2'), gameId: v2.gameId, previous: { tag: 'v1', installDir: v1.installDir } });
+    expect(await fs.readFile(path.join(again.installDir, 'Save', 'file1.sav'), 'utf8')).toBe('progresso');
+    expect(await fs.readFile(path.join(again.installDir, 'data', 'pacote.txt'), 'utf8')).toBe('pacote v2');
+    expect(calls.trashed).toHaveLength(1);
+    expect(calls.trashed[0]).toMatch(/[\\/]v2\.old-\d+$/);
+    expect((await fs.readdir(path.join(root, 'demo'))).sort()).toEqual(['v1', 'v2']);
+  });
+
   it('compilação republicada com a mesma tag ganha pasta própria e a anterior continua', async () => {
     const releases = [release('ci-dev-build', true, zipOf('build-1'))];
     const { service, root } = setup(releases);

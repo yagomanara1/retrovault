@@ -8,6 +8,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import Database from 'better-sqlite3';
 import type { ScanCandidate } from '@shared/types';
+import { pathExists } from './fsUtils';
 import { isHelperExecutable, rankExecutables, type ExeInfo } from './libraryScanner';
 import { pickSteamRoot, steamApps } from './steam/steamLibrary';
 
@@ -46,8 +47,6 @@ export interface StoreLibraryDeps {
   /** Pasta da Steam fixada (testes numa cópia, RETROVAULT_STEAM_DIR): o registro não é consultado. */
   steamDir?: string | null;
 }
-
-const exists = (p: string) => fs.stat(p).then(() => true, () => false);
 
 /**
  * Lê a chave com o `reg export` (UTF-16, preserva acentos como em "Pokémon"; o `reg query` sai no código
@@ -184,7 +183,7 @@ function readSqlite<T>(file: string, query: string): T[] {
 
 export async function amazonGames(localAppData: string): Promise<StoreGame[]> {
   const file = path.join(localAppData, 'Amazon Games', 'Data', 'Games', 'Sql', 'GameInstallInfo.sqlite');
-  if (!(await exists(file))) return [];
+  if (!(await pathExists(file))) return [];
   const rows = readSqlite<{ ProductTitle: string; InstallDirectory: string }>(file, 'SELECT ProductTitle, InstallDirectory FROM DbSet WHERE Installed = 1');
   const games: StoreGame[] = [];
   for (const r of rows) {
@@ -202,7 +201,7 @@ export async function amazonGames(localAppData: string): Promise<StoreGame[]> {
 
 export async function itchGames(appData: string): Promise<StoreGame[]> {
   const file = path.join(appData, 'itch', 'db', 'butler.db');
-  if (!(await exists(file))) return [];
+  if (!(await pathExists(file))) return [];
   const rows = readSqlite<{ title: string; root: string; folder: string }>(
     file,
     `SELECT g.title AS title, l.path AS root, c.install_folder_name AS folder
@@ -243,9 +242,9 @@ async function rankedExecutables(dir: string, title: string): Promise<ExeInfo[]>
 
 /** Jogo da loja → candidato da revisão (o executável da loja, se existir; senão o mais provável da pasta). */
 async function toCandidate(game: StoreGame, inLibrary: (p: string) => boolean): Promise<ScanCandidate | null> {
-  if (!(await exists(game.dir))) return null; // registro velho de jogo desinstalado
+  if (!(await pathExists(game.dir))) return null; // registro velho de jogo desinstalado
   const ranked = await rankedExecutables(game.dir, game.title);
-  const main = game.exe && (await exists(game.exe)) ? game.exe : ranked[0]?.file;
+  const main = game.exe && (await pathExists(game.exe)) ? game.exe : ranked[0]?.file;
   if (!main) return null;
   const alternatives = ranked.map((e) => e.file).filter((f) => f.toLowerCase() !== main.toLowerCase());
   return {

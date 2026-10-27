@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { AcceptedRom, RomSetupResult, RomStatus, StorePort } from '@shared/store';
 import type { StoreInstallRepository } from '../../db/repositories/storeInstallRepository';
 import { AppError } from '../../errors';
+import { pathExists } from '../fsUtils';
 import { n64ByteOrder, toBigEndianN64, type N64ByteOrder } from '../romHasher';
 import type { StoreCatalogService } from './catalogService';
 import { safeEntryPath } from './zipExtract';
@@ -130,10 +131,10 @@ export class RomService {
 
     if (port.setup.method === 'copy') {
       const target = this.targetPath(port, install.installDir);
-      return (await exists(target)) ? { ...base, state: 'ready' } : base;
+      return (await pathExists(target)) ? { ...base, state: 'ready' } : base;
     }
     const prepared = path.join(install.installDir, PREPARED_DIR, `${port.id}.z64`);
-    const fileToSelect = (await exists(prepared)) ? prepared : (await exists(remembered.sourcePath)) ? remembered.sourcePath : null;
+    const fileToSelect = (await pathExists(prepared)) ? prepared : (await pathExists(remembered.sourcePath)) ? remembered.sourcePath : null;
     return fileToSelect ? { ...base, state: 'verified', fileToSelect } : base;
   }
 
@@ -166,7 +167,7 @@ export class RomService {
    */
   async reapply(portId: string): Promise<boolean> {
     const remembered = this.deps.repo.rom(portId);
-    if (!remembered || !(await exists(remembered.sourcePath))) return false;
+    if (!remembered || !(await pathExists(remembered.sourcePath))) return false;
     try {
       await this.setup(portId, remembered.sourcePath);
       return true;
@@ -197,13 +198,6 @@ export class RomService {
     if (!target) throw new AppError('VALIDATION', 'Destino da ROM inválido no catálogo.');
     return target;
   }
-}
-
-async function exists(p: string): Promise<boolean> {
-  return fs.access(p).then(
-    () => true,
-    () => false,
-  );
 }
 
 /** Grava num temporário e renomeia: o port nunca vê uma ROM pela metade. */

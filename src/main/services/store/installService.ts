@@ -14,6 +14,7 @@ import {
 } from '@shared/store';
 import type { StoreInstallRepository } from '../../db/repositories/storeInstallRepository';
 import { AppError } from '../../errors';
+import { pathExists } from '../fsUtils';
 import type { FetchFn } from '../http';
 import { isHelperExecutable } from '../libraryScanner';
 import type { StoreCatalogService } from './catalogService';
@@ -101,13 +102,6 @@ export function expandWindowsPath(template: string, env: NodeJS.ProcessEnv = pro
   return missing ? null : path.normalize(expanded);
 }
 
-async function exists(p: string): Promise<boolean> {
-  return fs.access(p).then(
-    () => true,
-    () => false,
-  );
-}
-
 /** .exe até 2 níveis de profundidade (ports trazem o executável no topo ou numa subpasta). */
 async function findExecutables(dir: string, depth = 0): Promise<string[]> {
   const found: string[] = [];
@@ -123,7 +117,7 @@ async function findExecutables(dir: string, depth = 0): Promise<string[]> {
 export async function resolveExecutable(dir: string, port: Pick<StorePort, 'executable' | 'name'>): Promise<string> {
   if (port.executable) {
     const target = safeEntryPath(dir, port.executable.replace(/\\/g, '/'));
-    if (target && (await exists(target))) return target;
+    if (target && (await pathExists(target))) return target;
   }
   const candidates = (await findExecutables(dir)).filter((f) => !isPortHelper(f));
   if (candidates.length === 0) throw new AppError('VALIDATION', 'Não encontrei o executável do port no pacote baixado.');
@@ -133,6 +127,66 @@ export async function resolveExecutable(dir: string, port: Pick<StorePort, 'exec
   );
   scored.sort((a, b) => a.depth - b.depth || b.size - a.size);
   return scored[0]!.f;
+}
+
+/** Pacote montado na pasta temporária, antes de ir para o lugar. */
+interface StagedPackage {
+  /** Pasta com o conteúdo do pacote (a pasta única do topo do zip, se houver). */
+  content: string;
+  exe: string;
+  /** Arquivos do pacote, em minúsculas: o que não estiver aqui é do usuário. */
+  packageSet: Set<string>;
+}
+
+/** Extrai (ou copia o .exe avulso) para a pasta temporária e grava o manifesto do pacote. */
+async function stagePackage(
+  kind: 'archive' | 'portable',
+  assetName: string,
+  file: string,
+  staging: string,
+  port: StorePort,
+  report: (phase: InstallPhase, done: number, total: number, force?: boolean) => void,
+  signal: AbortSignal,
+): Promise<StagedPackage> {
+  let content: string;
+  let exe: string;
+  if (kind === 'portable') {
+    // Um .exe sozinho: vira um "pacote" de um arquivo, com versões e "voltar" como os outros.
+    exe = path.join(staging, safeDirName(assetName));
+    await fs.copyFile(file, exe);
+    content = staging;
+  } else {
+    report('extracting', 0, 0, true);
+    const onProgress = (p: { files: number; totalFiles: number }) => report('extracting', p.files, p.totalFiles);
+    if (TAR_FORMATS.test(assetName)) await extract7z(file, staging, { signal, onProgress });
+    else await extractZip(file, staging, { signal, onProgress });
+    content = await contentRoot(staging);
+    exe = await resolveExecutable(content, port);
+  }
+  // Manifesto do pacote: o que não estiver nele, depois, é do usuário (saves, configurações…).
+  const packageFiles = await listFiles(content);
+  await writeManifest(content, packageFiles);
+  return { content, exe, packageSet: new Set(packageFiles.map((f) => f.toLowerCase())) };
+}
+
+/** Saves, configurações e arquivos gerados (ex.: o .o2r feito da ROM) seguem para a versão nova. */
+async function carryFromPrevious(previousDir: string, pkg: StagedPackage): Promise<void> {
+  await carryUserFiles(previousDir, pkg.content, pkg.packageSet);
+  // Pasta de antes do manifesto: registra o que era pacote, para "voltar" saber o que é do usuário.
+  if (!(await readManifest(previousDir))) {
+    await writeManifest(previousDir, (await listFiles(previousDir)).filter((f) => pkg.packageSet.has(f.toLowerCase())));
+  }
+}
+
+/**
+ * A versão que estava ativa (se for outra pasta) vira a "anterior" e a anterior dela sai.
+ * Reinstalação da mesma pasta: a "anterior" que já existia continua.
+ */
+async function chooseKeptVersion(previous: StoreInstall | null, previousExists: boolean, finalDir: string): Promise<InstalledVersion | null> {
+  if (previous && previousExists && previous.installDir !== finalDir) return versionOf(previous);
+  const older = previous?.previous;
+  if (older && older.installDir !== finalDir && (await pathExists(older.installDir))) return older;
+  return null;
 }
 
 /**
@@ -165,7 +219,7 @@ export class InstallService {
   async install(portId: string, tag?: string): Promise<StoreInstall> {
     // A versão pedida é a anterior, ainda no disco: troca na hora, sem baixar.
     const current = this.deps.repo.get(portId);
-    if (tag && current?.previous?.tag === tag && (await exists(current.previous.installDir))) return this.rollback(portId);
+    if (tag && current?.previous?.tag === tag && (await pathExists(current.previous.installDir))) return this.rollback(portId);
 
     if (this.jobs.has(portId)) throw new AppError('ALREADY_RUNNING', 'Este port já está sendo instalado.');
     const controller = new AbortController();
@@ -177,22 +231,7 @@ export class InstallService {
 
     try {
       report('preparing', 0, 0, true);
-      const port = await this.deps.store.port(portId);
-      const release = chooseRelease(await this.deps.store.releases(portId), tag);
-      const asset = release?.windowsAsset;
-      if (!release || !asset) throw new AppError('NOT_FOUND', 'Este port não tem uma versão para Windows publicada.');
-      const kind = installKind(port, asset.name);
-      if (kind === 'archive' && !/\.zip$/i.test(asset.name) && !TAR_FORMATS.test(asset.name)) {
-        throw new AppError('VALIDATION', `O formato de "${asset.name}" ainda não é suportado pela Loja.`);
-      }
-
-      const installed = this.deps.repo.get(portId);
-      // Versão de instalador fica fora da pasta do RetroVault: não vira "anterior" nem tem arquivos a levar.
-      const previous = installed && installed.kind !== 'installer' ? installed : null;
-      const rememberedGame = this.deps.repo.gameFor(portId);
-      if (rememberedGame && this.deps.isRunning(rememberedGame)) {
-        throw new AppError('ALREADY_RUNNING', 'Feche o jogo antes de atualizar ou reinstalar.');
-      }
+      const { port, release, asset, kind, installed, previous, rememberedGame } = await this.plan(portId, tag);
 
       const downloads = path.join(this.deps.root, '.downloads');
       await fs.mkdir(downloads, { recursive: true });
@@ -212,62 +251,19 @@ export class InstallService {
       if (kind === 'installer') {
         return await this.installWithInstaller({ port, tag: release.tag, asset, file: downloadPath, sha256, staging, installed, rememberedGame, report, signal });
       }
-
-      let content: string;
-      let exeInContent: string;
-      if (kind === 'portable') {
-        // Um .exe sozinho: vira um "pacote" de um arquivo, com versões e "voltar" como os outros.
-        exeInContent = path.join(staging, safeDirName(asset.name));
-        await fs.copyFile(downloadPath, exeInContent);
-        content = staging;
-      } else {
-        report('extracting', 0, 0, true);
-        const onProgress = (p: { files: number; totalFiles: number }) => report('extracting', p.files, p.totalFiles);
-        if (TAR_FORMATS.test(asset.name)) await extract7z(downloadPath, staging, { signal, onProgress });
-        else await extractZip(downloadPath, staging, { signal, onProgress });
-        content = await contentRoot(staging);
-        exeInContent = await resolveExecutable(content, port);
-      }
-      // Manifesto do pacote: o que não estiver nele, depois, é do usuário (saves, configurações…).
-      const packageFiles = await listFiles(content);
-      const packageSet = new Set(packageFiles.map((f) => f.toLowerCase()));
-      await writeManifest(content, packageFiles);
+      const pkg = await stagePackage(kind, asset.name, downloadPath, staging, port, report, signal);
 
       report('finishing', 0, 0, true);
       signal.throwIfAborted();
       // Antes de mexer em qualquer pasta (e enquanto o jogo ainda aponta para a versão antiga):
       // o save vai para o cofre, porque muitos ports salvam dentro da própria pasta.
       if (previous && rememberedGame) await this.deps.backupSave(rememberedGame);
-      const previousExists = !!previous && (await exists(previous.installDir));
-      if (previous && previousExists) {
-        // Saves, configurações e arquivos gerados (ex.: o .o2r feito da ROM) seguem para a versão nova.
-        await carryUserFiles(previous.installDir, content, packageSet);
-        // Pasta de antes do manifesto: registra o que era pacote, para "voltar" saber o que é do usuário.
-        if (!(await readManifest(previous.installDir))) {
-          await writeManifest(previous.installDir, (await listFiles(previous.installDir)).filter((f) => packageSet.has(f.toLowerCase())));
-        }
-      }
+      const previousExists = !!previous && (await pathExists(previous.installDir));
+      if (previous && previousExists) await carryFromPrevious(previous.installDir, pkg);
 
-      // Troca atômica: a pasta final só aparece completa (rename no mesmo volume).
-      let finalDir = path.join(this.deps.root, portId, safeDirName(release.tag));
-      // Mesma tag com outro arquivo (compilação republicada, ex.: "ci-dev-build"): pasta própria,
-      // para a compilação anterior continuar disponível para voltar.
-      if (previous && previous.installDir === finalDir && previous.sha256 !== sha256) finalDir = `${finalDir}-${sha256.slice(0, 8)}`;
-      await fs.mkdir(path.dirname(finalDir), { recursive: true });
-      let replaced: string | null = null;
-      if (await exists(finalDir)) {
-        // Reinstalar a mesma versão: a antiga sai do caminho e vai para a Lixeira no fim.
-        replaced = `${finalDir}.old-${Date.now()}`;
-        await fs.rename(finalDir, replaced);
-      }
-      await fs.rename(content, finalDir);
-      const exePath = path.join(finalDir, path.relative(content, exeInContent));
-
-      // A versão que estava ativa (se for outra pasta) vira a "anterior" e a anterior dela sai.
-      // Reinstalação da mesma pasta: a "anterior" que já existia continua.
-      let keep: InstalledVersion | null = null;
-      if (previous && previousExists && previous.installDir !== finalDir) keep = versionOf(previous);
-      else if (previous?.previous && previous.previous.installDir !== finalDir && (await exists(previous.previous.installDir))) keep = previous.previous;
+      const { finalDir, replaced } = await this.swapIntoPlace(portId, release.tag, sha256, previous, pkg.content);
+      const exePath = path.join(finalDir, path.relative(pkg.content, pkg.exe));
+      const keep = await chooseKeptVersion(previous, previousExists, finalDir);
       const gameId = await this.linkGame(port, rememberedGame, exePath);
       const install = this.deps.repo.save(
         portId,
@@ -287,10 +283,7 @@ export class InstallService {
       );
 
       // Para a Lixeira (o save já está no cofre): a pasta substituída e a versão de antes da anterior.
-      const discard = [replaced, previous?.previous?.installDir].filter(
-        (d): d is string => !!d && d !== finalDir && d !== keep?.installDir,
-      );
-      for (const dir of discard) await this.trashQuietly(dir);
+      await this.discardOld([replaced, previous?.previous?.installDir], [finalDir, keep?.installDir]);
       await this.deps.afterInstall?.(portId);
       return install;
     } catch (err) {
@@ -303,6 +296,55 @@ export class InstallService {
     }
   }
 
+  /** O que instalar: a versão e o arquivo de Windows, e o que já está instalado (para virar "anterior"). */
+  private async plan(portId: string, tag?: string) {
+    const port = await this.deps.store.port(portId);
+    const release = chooseRelease(await this.deps.store.releases(portId), tag);
+    const asset = release?.windowsAsset;
+    if (!release || !asset) throw new AppError('NOT_FOUND', 'Este port não tem uma versão para Windows publicada.');
+    const kind = installKind(port, asset.name);
+    if (kind === 'archive' && !/\.zip$/i.test(asset.name) && !TAR_FORMATS.test(asset.name)) {
+      throw new AppError('VALIDATION', `O formato de "${asset.name}" ainda não é suportado pela Loja.`);
+    }
+
+    const installed = this.deps.repo.get(portId);
+    // Versão de instalador fica fora da pasta do RetroVault: não vira "anterior" nem tem arquivos a levar.
+    const previous = installed && installed.kind !== 'installer' ? installed : null;
+    const rememberedGame = this.deps.repo.gameFor(portId);
+    if (rememberedGame && this.deps.isRunning(rememberedGame)) {
+      throw new AppError('ALREADY_RUNNING', 'Feche o jogo antes de atualizar ou reinstalar.');
+    }
+    return { port, release, asset, kind, installed, previous, rememberedGame };
+  }
+
+  /** Troca atômica: a pasta final só aparece completa (rename no mesmo volume). */
+  private async swapIntoPlace(
+    portId: string,
+    tag: string,
+    sha256: string,
+    previous: StoreInstall | null,
+    content: string,
+  ): Promise<{ finalDir: string; replaced: string | null }> {
+    let finalDir = path.join(this.deps.root, portId, safeDirName(tag));
+    // Mesma tag com outro arquivo (compilação republicada, ex.: "ci-dev-build"): pasta própria,
+    // para a compilação anterior continuar disponível para voltar.
+    if (previous && previous.installDir === finalDir && previous.sha256 !== sha256) finalDir = `${finalDir}-${sha256.slice(0, 8)}`;
+    await fs.mkdir(path.dirname(finalDir), { recursive: true });
+    let replaced: string | null = null;
+    if (await pathExists(finalDir)) {
+      // Reinstalar a mesma versão: a antiga sai do caminho e vai para a Lixeira no fim.
+      replaced = `${finalDir}.old-${Date.now()}`;
+      await fs.rename(finalDir, replaced);
+    }
+    await fs.rename(content, finalDir);
+    return { finalDir, replaced };
+  }
+
+  /** Manda para a Lixeira as pastas que sobraram, menos as que continuam em uso. */
+  private async discardOld(dirs: (string | null | undefined)[], inUse: (string | null | undefined)[]): Promise<void> {
+    for (const dir of dirs) if (dir && !inUse.includes(dir)) await this.trashQuietly(dir);
+  }
+
   /**
    * Volta para a versão anterior, que continua no disco (sem baixar). Os arquivos do usuário da
    * versão atual (saves mais novos, configurações) vão junto; a atual vira a "anterior" — dá para
@@ -312,14 +354,14 @@ export class InstallService {
     if (this.jobs.has(portId)) throw new AppError('ALREADY_RUNNING', 'Espere a instalação terminar.');
     const install = this.deps.repo.get(portId);
     const target = install?.previous;
-    if (!install || !target || !(await exists(target.installDir))) {
+    if (!install || !target || !(await pathExists(target.installDir))) {
       throw new AppError('NOT_FOUND', 'Não há versão anterior guardada para voltar.');
     }
     if (install.gameId && this.deps.isRunning(install.gameId)) throw new AppError('ALREADY_RUNNING', 'Feche o jogo antes de trocar de versão.');
     this.jobs.set(portId, new AbortController());
     try {
       if (install.gameId) await this.deps.backupSave(install.gameId);
-      if (await exists(install.installDir)) {
+      if (await pathExists(install.installDir)) {
         await carryUserFiles(install.installDir, target.installDir, await packageFilesOf(target.installDir));
       }
       const port = await this.deps.store.port(portId);
@@ -394,7 +436,7 @@ export class InstallService {
       return { manual: true };
     }
     await this.deps.trash(install.installDir);
-    if (install.previous && (await exists(install.previous.installDir))) await this.trashQuietly(install.previous.installDir);
+    if (install.previous && (await pathExists(install.previous.installDir))) await this.trashQuietly(install.previous.installDir);
     this.deps.repo.remove(portId);
     // A pasta do port fica vazia sem as versões: some também (rmdir só apaga pasta vazia).
     await fs.rmdir(path.dirname(install.installDir)).catch(() => undefined);
@@ -425,7 +467,7 @@ export class InstallService {
     let exe: string | null = null;
     for (const candidate of port.installedExe ?? []) {
       const expanded = expandWindowsPath(candidate);
-      if (expanded && (await exists(expanded))) {
+      if (expanded && (await pathExists(expanded))) {
         exe = expanded;
         break;
       }
@@ -455,7 +497,7 @@ export class InstallService {
       null,
       gameId,
     );
-    for (const dir of oldDirs) if (dir && (await exists(dir))) await this.trashQuietly(dir);
+    for (const dir of oldDirs) if (dir && (await pathExists(dir))) await this.trashQuietly(dir);
     await this.deps.afterInstall?.(port.id);
     return install;
   }

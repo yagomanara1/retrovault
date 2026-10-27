@@ -11,7 +11,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Game } from '@shared/types';
 import { compactKey } from '@shared/text';
-import { parseArgs } from '../fsUtils';
+import { parseArgs, pathExists } from '../fsUtils';
 import { parseTrophyXml, type ParsedTrophy } from './trp';
 
 export type TrophyEmulator = 'rpcs3' | 'vita3k';
@@ -77,7 +77,6 @@ export function parseProgress(emulator: TrophyEmulator, data: Buffer): Map<numbe
   return emulator === 'rpcs3' ? parseRpcs3Progress(data) : parseVita3kProgress(data);
 }
 
-const exists = (p: string) => fs.stat(p).then(() => true, () => false);
 const isDir = (p: string) => fs.stat(p).then((s) => s.isDirectory(), () => false);
 const list = (p: string) => fs.readdir(p).catch(() => [] as string[]);
 
@@ -107,7 +106,7 @@ export async function readTrophyFolder(folder: string, languages: readonly strin
   let localized: ReturnType<typeof parseTrophyXml> | null = null;
   for (const lang of languages) {
     const file = path.join(folder, `${lang}.SFM`);
-    if (!(await exists(file))) continue;
+    if (!(await pathExists(file))) continue;
     const parsed = parseTrophyXml((await readLimited(file, MAX_XML_BYTES)).toString('utf8'));
     if (parsed.trophies.length) {
       localized = parsed;
@@ -173,14 +172,14 @@ async function locateRpcs3(game: Game): Promise<EmulatorTrophyLocation | null> {
       for (const name of await list(base)) {
         if (!NPWR.test(name) || (ids && !ids.includes(name.toUpperCase()))) continue;
         const folder = path.join(base, name);
-        if (await exists(path.join(folder, 'TROPCONF.SFM'))) found.push({ emulator: 'rpcs3', npCommId: name.toUpperCase(), folder, progressPath: path.join(folder, 'TROPUSR.DAT') });
+        if (await pathExists(path.join(folder, 'TROPCONF.SFM'))) found.push({ emulator: 'rpcs3', npCommId: name.toUpperCase(), folder, progressPath: path.join(folder, 'TROPUSR.DAT') });
       }
     }
     return found;
   };
   // 1) Pelo jogo nos argumentos (EBOOT.BIN ou pasta do jogo): o ID exato dos troféus.
   for (const arg of parseArgs(game.launchArgs)) {
-    if (!path.isAbsolute(arg) || !(await exists(arg))) continue;
+    if (!path.isAbsolute(arg) || !(await pathExists(arg))) continue;
     const ids = await ps3TrophyIds(arg);
     if (ids.length) return (await sets(ids))[0] ?? null;
   }
@@ -219,7 +218,7 @@ async function locateVita3k(game: Game, appDataDir: string): Promise<EmulatorTro
     for (const user of await list(usersDir)) {
       for (const id of ids) {
         const folder = path.join(usersDir, user, 'trophy', 'conf', id);
-        if (await exists(path.join(folder, 'TROPCONF.SFM'))) {
+        if (await pathExists(path.join(folder, 'TROPCONF.SFM'))) {
           return { emulator: 'vita3k', npCommId: id, folder, progressPath: path.join(usersDir, user, 'trophy', 'data', id, 'TROPUSR.DAT') };
         }
       }
